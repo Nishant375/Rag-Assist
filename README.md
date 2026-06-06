@@ -1,4 +1,4 @@
-# DocuMind
+# Rag-Assist
 
 > Upload your documents and chat with them using AI — powered by Corrective RAG, Groq LLM, and pgvector.
 
@@ -11,7 +11,7 @@
 
 ## What it does
 
-DocuMind lets you upload any documents (PDF, DOCX, TXT, MD) and have an intelligent conversation with them. It uses **Corrective RAG** — a self-correcting retrieval pipeline that:
+Rag-Assist lets you upload any documents (PDF, DOCX, TXT, MD) and have an intelligent conversation with them. It uses **Corrective RAG** — a self-correcting retrieval pipeline that:
 
 1. Retrieves relevant chunks from your documents
 2. Grades them for relevance — if none are relevant, it **rewrites the question** and retries
@@ -25,7 +25,7 @@ DocuMind lets you upload any documents (PDF, DOCX, TXT, MD) and have an intellig
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                     DocuMind                        │
+│                     Rag-Assist                        │
 │                                                     │
 │  Streamlit UI (:8501)  ──►  FastAPI (:8000)         │
 │                                 │                   │
@@ -54,7 +54,7 @@ DocuMind lets you upload any documents (PDF, DOCX, TXT, MD) and have an intellig
 ## Project structure
 
 ```
-documind/
+Rag-Assist/
 ├── agent/                  # LangGraph CRAG agent
 │   ├── graph.py            # Graph wiring & conditional edges
 │   ├── nodes.py            # Node functions (retrieve, grade, generate …)
