@@ -1,0 +1,57 @@
+services:
+
+  # ── Ollama — local embeddings ──────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: crag-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama   # persist downloaded models
+    # Pull nomic-embed-text on first start
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull nomic-embed-text &&
+             wait"
+
+  # ── FastAPI — CRAG agent backend ───────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: crag-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434   # talk to ollama container
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX=${PINECONE_INDEX:-crag-index}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
+    volumes:
+      - uploads:/app/uploads                 # persist uploaded files
+    depends_on:
+      - ollama
+
+  # ── Streamlit — chat UI ────────────────────────────────────────────────────
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: crag-ui
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000               # talk to api container
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+    depends_on:
+      - api
+
+volumes:
+  ollama_data:
+  uploads:

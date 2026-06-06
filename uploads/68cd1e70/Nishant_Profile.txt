@@ -1,0 +1,28 @@
+User Information Summary
+
+Name:
+- Nishant Kumar Singh
+
+Professional Background:
+- Works at MBRDI as a Full Stack Developer.
+- Expertise includes Java, Spring Boot, React, Jenkins, AWS, and PaaS.
+
+Technical Interests:
+- Interested in Artificial Intelligence (AI).
+- Uses Groq API for LLMs and embeddings.
+- Wants to use DeepSeek embeddings in RAG applications.
+
+Learning Goals:
+- Spring Boot JPA entity mapping and data retrieval concepts.
+- Data Structures and Algorithms (especially arrays and sliding window techniques).
+- React concepts for interviews and deep understanding.
+- System Design (high-level and low-level).
+- Database concepts and Spring Data JPA mapping.
+- Java sorting concepts, including stream-based sorting.
+- Multithreading in Java.
+
+Preferred Name:
+- Nikku
+
+Role:
+- Software Engineer
