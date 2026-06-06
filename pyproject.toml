@@ -1,7 +1,7 @@
 [project]
-name = "crag"
+name = "documind"
 version = "0.1.0"
-description = "Corrective RAG agent — LangGraph + Groq + Ollama + Pinecone"
+description = "Upload your documents and chat with them using AI — powered by Corrective RAG, Groq LLM, and pgvector"
 requires-python = ">=3.11"
 dependencies = [
     # Agent framework

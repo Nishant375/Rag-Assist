@@ -27,8 +27,8 @@ load_dotenv()
 from agent.graph import crag_graph
 
 app = FastAPI(
-    title="Corrective RAG API",
-    description="CRAG agent — LangGraph + Groq + Ollama + Pinecone",
+    title="DocuMind API",
+    description="Upload your documents and chat with them using AI — powered by Corrective RAG, Groq LLM, and pgvector",
     version="1.0.0",
 )
 

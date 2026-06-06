@@ -15,7 +15,7 @@ load_dotenv()
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 st.set_page_config(
-    page_title="RAG Assistant",
+    page_title="DocuMind",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -243,8 +243,8 @@ st.markdown(f"""
     <div class="topnav-logo">
         <div class="topnav-icon">⚡</div>
         <div>
-            <div class="topnav-name">RAG Assistant</div>
-            <div class="topnav-sub">Corrective Retrieval Agent</div>
+            <div class="topnav-name">DocuMind</div>
+            <div class="topnav-sub">Chat with your documents using AI</div>
         </div>
     </div>
     <span class="api-pill {'api-on' if online else 'api-off'}">
