@@ -50,14 +50,31 @@ jobs:
     needs: ci
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Protected environment — add required reviewers / branch rules in repo settings.
+    # Protected environment — REQUIRED REVIEWERS gate the deploy here. Configure
+    # Settings → Environments → production → Required reviewers so this job pauses
+    # for manual approval before it runs. Until approved, nothing is deployed.
     environment: production
     # Machine auth: token + project override, no interactive login, no password.
     env:
       INSFORGE_ACCESS_TOKEN: ${{ secrets.INSFORGE_ACCESS_TOKEN }}
       INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}
+      # Discourage any interactive prompts in CI.
+      CI: "true"
     steps:
       - uses: actions/checkout@v4
+
+      # Fail fast instead of hanging on the CLI's interactive OAuth login when
+      # credentials are missing.
+      - name: Verify deploy credentials are present
+        run: |
+          missing=0
+          for v in INSFORGE_ACCESS_TOKEN INSFORGE_PROJECT_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Required secret $v is not set"; missing=1; fi
+          done
+          if [ -z "${{ secrets.INSFORGE_API_SERVICE_ID }}" ]; then
+            echo "::error::Required secret INSFORGE_API_SERVICE_ID is not set"; missing=1
+          fi
+          [ "$missing" = "0" ] || { echo "Set the secrets in Settings → Secrets and variables → Actions, then re-run."; exit 1; }
 
       - name: Lowercase image base
         id: img
