@@ -1,0 +1,18 @@
+# Code owners — GitHub auto-requests review from these owners on matching PRs.
+# Requires "Require review from Code Owners" in branch protection to be enforced.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+*                       @Nishant375
+
+# CI/CD and infra — guard changes to the pipeline and container/build config
+/.github/               @Nishant375
+/Dockerfile.api         @Nishant375
+/Dockerfile.ui          @Nishant375
+/docker-compose*.yml    @Nishant375
+/insforge.toml          @Nishant375
+
+# Backend hot paths
+/api/                   @Nishant375
+/rag/                   @Nishant375
+/services/              @Nishant375

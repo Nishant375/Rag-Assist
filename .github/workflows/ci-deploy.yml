@@ -1,0 +1,122 @@
+name: CI & Deploy to InsForge
+
+# CI runs on every push and PR. Deploy runs only when CI passes on `main`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Never let two runs of the same ref deploy on top of each other.
+concurrency:
+  group: ci-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# Built-in token only needs to push images to GHCR.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  # Public Fly endpoint of the API service — used for the post-deploy health check.
+  API_HEALTH_URL: https://rag-assist-api-2c425752-0061-4a84-8efd-8af5b5022cbe.fly.dev/health
+
+jobs:
+  # ── 1. CI: syntax check + verify both Docker images build ──────────────────
+  ci:
+    name: Lint & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax / import compile check
+        run: python -m compileall -q api core providers rag services ui ingest_cli.py
+
+      - name: Build API image (smoke test)
+        run: docker build -f Dockerfile.api -t rag-assist-api:ci .
+
+      - name: Build UI image (smoke test)
+        run: docker build -f Dockerfile.ui -t rag-assist-ui:ci .
+
+  # ── 2. Deploy: push images to GHCR, roll InsForge compute services ─────────
+  deploy:
+    name: Deploy to InsForge
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Protected environment — add required reviewers / branch rules in repo settings.
+    environment: production
+    # Machine auth: token + project override, no interactive login, no password.
+    env:
+      INSFORGE_ACCESS_TOKEN: ${{ secrets.INSFORGE_ACCESS_TOKEN }}
+      INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase image base
+        id: img
+        run: echo "base=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      # Images can stay PRIVATE: keep the GHCR packages private and have
+      # InsForge register a read:packages PAT as the project's pull credential
+      # (see .github/BRANCH_PROTECTION.md). No workflow change needed for that.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: |
+            ${{ steps.img.outputs.base }}-api:latest
+            ${{ steps.img.outputs.base }}-api:${{ github.sha }}
+
+      - name: Build & push UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ui
+          push: true
+          tags: |
+            ${{ steps.img.outputs.base }}-ui:latest
+            ${{ steps.img.outputs.base }}-ui:${{ github.sha }}
+
+      - name: Roll API compute service to new image
+        run: |
+          npx -y @insforge/cli compute update "${{ secrets.INSFORGE_API_SERVICE_ID }}" \
+            --image "${{ steps.img.outputs.base }}-api:${{ github.sha }}"
+
+      # Only runs once you've created a UI compute service and set its ID secret.
+      - name: Roll UI compute service to new image
+        env:
+          UI_SVC: ${{ secrets.INSFORGE_UI_SERVICE_ID }}
+        if: env.UI_SVC != ''
+        run: |
+          npx -y @insforge/cli compute update "$UI_SVC" \
+            --image "${{ steps.img.outputs.base }}-ui:${{ github.sha }}"
+
+      - name: Post-deploy health check (API)
+        run: |
+          echo "Waiting for $API_HEALTH_URL to report healthy ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$API_HEALTH_URL" | grep -q '"status":"ok"'; then
+              echo "API healthy ✅"
+              exit 0
+            fi
+            echo "attempt $i: not ready yet, retrying in 10s ..."
+            sleep 10
+          done
+          echo "::error::API did not become healthy after rollout"
+          exit 1

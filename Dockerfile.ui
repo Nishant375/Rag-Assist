@@ -4,6 +4,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml .
 COPY core/ core/
 COPY ui/ ui/
+COPY .streamlit/ .streamlit/
 RUN uv pip install --system --no-cache \
     streamlit pydantic-settings python-dotenv requests
 EXPOSE 8501
