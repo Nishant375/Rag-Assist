@@ -20,10 +20,10 @@ Usage:
   results = vs.search(query_vector, top_k=5)
 """
 
-import os
 import hashlib
+from core.config import settings
 
-VECTOR_STORE = os.getenv("VECTOR_STORE", "pinecone").lower()
+VECTOR_STORE = settings.vector_store.lower()
 
 _store = None
 
@@ -42,8 +42,8 @@ class PineconeStore:
         from pinecone import Pinecone, ServerlessSpec
         from providers.embeddings import get_embed_dim
 
-        pc  = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
-        idx = os.getenv("PINECONE_INDEX", "crag-index")
+        pc  = Pinecone(api_key=settings.pinecone_api_key)
+        idx = settings.pinecone_index
 
         existing = [i.name for i in pc.list_indexes()]
         if idx not in existing:
@@ -53,8 +53,8 @@ class PineconeStore:
                 dimension=get_embed_dim(),
                 metric="cosine",
                 spec=ServerlessSpec(
-                    cloud=os.getenv("PINECONE_CLOUD", "aws"),
-                    region=os.getenv("PINECONE_REGION", "us-east-1"),
+                    cloud=settings.pinecone_cloud,
+                    region=settings.pinecone_region,
                 ),
             )
         self.index = pc.Index(idx)
@@ -116,7 +116,7 @@ class PostgresStore:
         import psycopg2
         from providers.embeddings import get_embed_dim
 
-        self.conn_str = os.environ["POSTGRES_URL"]   # postgres://user:pass@host:5432/db
+        self.conn_str = settings.postgres_url
         self.dim      = get_embed_dim()
         self._init_table()
         print(f"[vectorstore] Connected to Postgres + pgvector (dim={self.dim})")

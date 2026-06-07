@@ -3,12 +3,8 @@ CRAG node functions. Each function receives GraphState and returns a partial dic
 All provider choices (embedder, vector store, LLM) are driven by env vars — no code changes needed.
 """
 
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from langchain_groq import ChatGroq
+from core.config import settings
 
 from .state import GraphState
 from .prompts import (
@@ -29,9 +25,9 @@ def _get_llm():
     global _llm
     if _llm is None:
         _llm = ChatGroq(
-            model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            model=settings.groq_model,
             temperature=0,
-            api_key=os.environ["GROQ_API_KEY"],
+            api_key=settings.groq_api_key,
         )
     return _llm
 

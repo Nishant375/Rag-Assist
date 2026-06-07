@@ -4,18 +4,18 @@
 install:
 	uv sync
 
-## Start the FastAPI backend (terminal 1)
+## Start the FastAPI backend — http://localhost:8000/docs
 api:
-	uv run uvicorn api:app --reload --port 8000
+	uv run uvicorn api.main:app --reload --port 8000
 
-## Start the Streamlit UI (terminal 2)
+## Start the Streamlit UI — http://localhost:8501
 chat:
-	uv run streamlit run app.py
+	uv run streamlit run ui/main.py
 
-## Ingest local folder:  make ingest SOURCE=./docs
+## Ingest a local folder:  make ingest SOURCE=./my-docs
 ingest:
-	uv run python ingest.py --source $(SOURCE)
+	uv run python ingest_cli.py --source $(SOURCE)
 
 ## Ingest from Google Drive:  make ingest-drive ID=<folder-id>
 ingest-drive:
-	uv run python ingest.py --drive-folder-id $(ID)
+	uv run python ingest_cli.py --drive-folder-id $(ID)

@@ -1,21 +1,13 @@
 FROM python:3.11-slim
-
 WORKDIR /app
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
 COPY pyproject.toml .
-COPY agent/ agent/
-COPY app.py .
-
+COPY core/ core/
+COPY ui/ ui/
 RUN uv pip install --system --no-cache \
-    langgraph langchain langchain-groq langchain-community \
-    langchain-ollama langchain-google-genai \
-    pinecone streamlit python-dotenv requests
-
+    streamlit pydantic-settings python-dotenv requests
 EXPOSE 8501
-
-CMD ["streamlit", "run", "app.py", \
+CMD ["streamlit", "run", "ui/main.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
      "--server.headless=true"]

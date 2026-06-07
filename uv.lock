@@ -485,59 +485,6 @@ wheels = [
 ]
 
 [[package]]
-name = "documind"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "google-generativeai" },
-    { name = "langchain" },
-    { name = "langchain-community" },
-    { name = "langchain-google-genai" },
-    { name = "langchain-groq" },
-    { name = "langchain-ollama" },
-    { name = "langgraph" },
-    { name = "pinecone" },
-    { name = "psycopg2-binary" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-dotenv" },
-    { name = "streamlit" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-gdrive = [
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "google-api-python-client", marker = "extra == 'gdrive'", specifier = ">=2.100.0" },
-    { name = "google-auth", marker = "extra == 'gdrive'", specifier = ">=2.23.0" },
-    { name = "google-generativeai", specifier = ">=0.8.6" },
-    { name = "langchain", specifier = ">=0.3.0" },
-    { name = "langchain-community", specifier = ">=0.3.0" },
-    { name = "langchain-google-genai", specifier = ">=2.0.0" },
-    { name = "langchain-groq", specifier = ">=0.2.0" },
-    { name = "langchain-ollama", specifier = ">=0.2.0" },
-    { name = "langgraph", specifier = ">=0.2.0" },
-    { name = "pinecone", specifier = ">=5.0.0" },
-    { name = "psycopg2-binary", specifier = ">=2.9.0" },
-    { name = "pypdf", specifier = ">=4.0.0" },
-    { name = "python-docx", specifier = ">=1.1.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "streamlit", specifier = ">=1.35.0" },
-    { name = "uvicorn", specifier = ">=0.30.0" },
-]
-provides-extras = ["gdrive"]
-
-[package.metadata.requires-dev]
-dev = []
-
-[[package]]
 name = "fastapi"
 version = "0.136.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2705,6 +2652,65 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
 ]
+
+[[package]]
+name = "rag-assist"
+version = "1.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "google-generativeai" },
+    { name = "langchain" },
+    { name = "langchain-community" },
+    { name = "langchain-google-genai" },
+    { name = "langchain-groq" },
+    { name = "langchain-ollama" },
+    { name = "langchain-text-splitters" },
+    { name = "langgraph" },
+    { name = "pinecone" },
+    { name = "psycopg2-binary" },
+    { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "streamlit" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+gdrive = [
+    { name = "google-api-python-client" },
+    { name = "google-auth" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "google-api-python-client", marker = "extra == 'gdrive'", specifier = ">=2.100.0" },
+    { name = "google-auth", marker = "extra == 'gdrive'", specifier = ">=2.23.0" },
+    { name = "google-generativeai", specifier = ">=0.8.6" },
+    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain-community", specifier = ">=0.3.0" },
+    { name = "langchain-google-genai", specifier = ">=2.0.0" },
+    { name = "langchain-groq", specifier = ">=0.2.0" },
+    { name = "langchain-ollama", specifier = ">=0.2.0" },
+    { name = "langchain-text-splitters", specifier = ">=0.3.0" },
+    { name = "langgraph", specifier = ">=0.2.0" },
+    { name = "pinecone", specifier = ">=5.0.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.0" },
+    { name = "pydantic-settings", specifier = ">=2.0.0" },
+    { name = "pypdf", specifier = ">=4.0.0" },
+    { name = "python-docx", specifier = ">=1.1.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "streamlit", specifier = ">=1.35.0" },
+    { name = "uvicorn", specifier = ">=0.30.0" },
+]
+provides-extras = ["gdrive"]
+
+[package.metadata.requires-dev]
+dev = []
 
 [[package]]
 name = "referencing"
