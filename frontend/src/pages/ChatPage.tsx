@@ -1,48 +1,28 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
-import { useChatRouteChatPost } from "@/api/generated/chat/chat";
-import type { ChatResponse } from "@/api/generated/model";
-import { getErrorMessage } from "@/lib/error";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  rewritten?: string | null;
-  error?: boolean;
-}
+import { useChat } from "@/lib/chat";
 
 const SUGGESTIONS = ["Hi!", "What can you help me with?", "Summarize my documents", "What topics are covered?"];
 
 export function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages, isPending, send, clear } = useChat();
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-  const chat = useChatRouteChatPost();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, chat.isPending]);
+  }, [messages, isPending]);
 
-  async function send(text?: string) {
+  function submit(text?: string) {
     const msg = (text ?? input).trim();
-    if (!msg || chat.isPending) return;
+    if (!msg || isPending) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: msg }]);
-    try {
-      const res = (await chat.mutateAsync({ data: { message: msg } })) as ChatResponse;
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: res.answer, rewritten: res.rewritten_question },
-      ]);
-    } catch (err) {
-      const detail = getErrorMessage(err, "Request failed");
-      setMessages((m) => [...m, { role: "assistant", content: `Something went wrong: ${detail}`, error: true }]);
-    }
+    void send(msg);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void send();
+      submit();
     }
   }
 
@@ -60,7 +40,7 @@ export function ChatPage() {
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
-                  onClick={() => send(s)}
+                  onClick={() => submit(s)}
                   className="rounded-full border border-border bg-panel px-3.5 py-1.5 text-xs text-muted transition hover:border-brand hover:text-indigo-300"
                 >
                   {s}
@@ -102,7 +82,7 @@ export function ChatPage() {
             </div>
           ))
         )}
-        {chat.isPending && (
+        {isPending && (
           <div className="mb-3.5 flex">
             <div className="rounded-[18px_18px_18px_4px] bg-panel px-4 py-2.5">
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-400/40 border-t-indigo-400" />
@@ -112,18 +92,28 @@ export function ChatPage() {
         <div ref={endRef} />
       </div>
 
-      <div className="flex flex-shrink-0 gap-2 border-t border-panel py-3 pb-4">
+      <div className="flex flex-shrink-0 items-center gap-2 border-t border-panel py-3 pb-4">
+        {messages.length > 0 && (
+          <button
+            onClick={clear}
+            className="flex-shrink-0 rounded-xl border border-border bg-panel px-3 py-2.5 text-muted transition hover:border-red-700 hover:text-red-300"
+            aria-label="Clear chat"
+            title="Clear chat"
+          >
+            🗑
+          </button>
+        )}
         <input
           className="input rounded-2xl"
           placeholder="Ask anything …"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          disabled={chat.isPending}
+          disabled={isPending}
         />
         <button
-          onClick={() => send()}
-          disabled={chat.isPending || !input.trim()}
+          onClick={() => submit()}
+          disabled={isPending || !input.trim()}
           aria-label="Send"
           className="w-11 flex-shrink-0 rounded-xl bg-brand text-lg text-white transition hover:bg-brand-hover disabled:opacity-50"
         >
