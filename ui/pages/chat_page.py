@@ -10,6 +10,8 @@ def render():
     messages_box = st.container(height=570, border=False)
 
     with messages_box:
+        # Sentinel so CSS can target THIS scroll container and size it to the viewport
+        st.markdown('<span id="chat-scroll-anchor"></span>', unsafe_allow_html=True)
         if not st.session_state.messages:
             st.markdown("""
             <div class="chat-empty">
