@@ -1,11 +1,15 @@
 name: CI & Deploy to InsForge
 
-# CI runs on every push and PR. Deploy runs only when CI passes on `main`.
+# CI runs automatically on every push and PR.
+# Deploy is MANUAL: it only runs via "Run workflow" (workflow_dispatch), which
+# requires repo write access — that click is the approval gate. (Free private
+# repos can't use Environment required reviewers, so this is the equivalent.)
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch: {}
 
 # Never let two runs of the same ref deploy on top of each other.
 concurrency:
@@ -48,11 +52,13 @@ jobs:
   deploy:
     name: Deploy to InsForge
     needs: ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Manual gate: only runs when a maintainer triggers "Run workflow" on main.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Protected environment — REQUIRED REVIEWERS gate the deploy here. Configure
-    # Settings → Environments → production → Required reviewers so this job pauses
-    # for manual approval before it runs. Until approved, nothing is deployed.
+    # `production` environment scopes the deploy secrets to this job (works on
+    # free private repos). The approval gate itself is the manual workflow_dispatch
+    # trigger above — Environment "required reviewers" need a paid plan on private
+    # repos, so we don't rely on them here.
     environment: production
     # Machine auth: non-interactive email/password login. OAuth access tokens
     # are short-lived (hours) and can't be used as a static CI secret, so we log
