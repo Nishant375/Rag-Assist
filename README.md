@@ -1,6 +1,7 @@
 # Rag-Assist
 
-> Upload your documents and chat with them using AI — powered by Corrective RAG, Groq LLM, and pgvector.
+> Upload your documents and chat with them using AI.
+> Powered by **Corrective RAG**, **Groq LLM**, and **pgvector**.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple)
@@ -11,73 +12,154 @@
 
 ## What it does
 
-Rag-Assist lets you upload any documents (PDF, DOCX, TXT, MD) and have an intelligent conversation with them. It uses **Corrective RAG** — a self-correcting retrieval pipeline that:
+Rag-Assist lets you upload any documents (PDF, DOCX, TXT, MD), ask questions about them, and get accurate, grounded answers. It uses **Corrective RAG** — a self-correcting pipeline that:
 
-1. Retrieves relevant chunks from your documents
-2. Grades them for relevance — if none are relevant, it **rewrites the question** and retries
-3. Generates an answer grounded in your documents
-4. Runs a **hallucination check** — if the answer isn't supported, it regenerates
-5. Falls back to chitchat for greetings and small talk
+1. Retrieves the most relevant chunks from your documents
+2. Grades each chunk — irrelevant ones are discarded
+3. If nothing useful is found, the question is **rewritten** and retrieval is retried
+4. Generates an answer strictly from the retrieved context
+5. Runs a **hallucination check** — if the answer isn't grounded, it regenerates
+6. Runs a **usefulness check** — if the answer doesn't address the question, it retries
 
 ---
 
-## Architecture
+## Architecture overview
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                     Rag-Assist                        │
-│                                                     │
-│  Streamlit UI (:8501)  ──►  FastAPI (:8000)         │
-│                                 │                   │
-│                        LangGraph CRAG Agent         │
-│                                 │                   │
-│                    ┌────────────┴────────────┐      │
-│                    │                         │      │
-│              pgvector (Postgres)          Groq LLM  │
-│              Embeddings stored            Answers   │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Rag-Assist                                 │
+│                                                                      │
+│   Streamlit UI (:8501)  ──────►  FastAPI (:8000)                    │
+│        ui/                            api/                           │
+│                                        │                             │
+│                                   services/                          │
+│                                        │                             │
+│                          ┌─────────────┴──────────────┐             │
+│                          │                             │             │
+│                        rag/                      providers/          │
+│                   (CRAG pipeline)          (embeddings + vector DB)  │
+│                          │                             │             │
+│                      Groq LLM                   Postgres/pgvector    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Tech stack
 
 | Layer | Local Dev | Cloud (Insforge) |
 |---|---|---|
-| **LLM** | Groq (free) | Groq (free) |
-| **Embeddings** | Ollama (`nomic-embed-text`) | Google (`gemini-embedding-001`) |
-| **Vector DB** | Postgres + pgvector | Postgres + pgvector |
-| **Agent** | LangGraph | LangGraph |
-| **API** | FastAPI | FastAPI |
-| **UI** | Streamlit | Streamlit |
+| **LLM** | Groq — `llama-3.1-8b-instant` (free) | Groq (free) |
+| **Embeddings** | Ollama — `nomic-embed-text` (local) | Google — `gemini-embedding-001` (free) |
+| **Vector DB** | Postgres + pgvector (Docker) | Postgres + pgvector (Insforge built-in) |
+| **Auth** | Insforge Auth | Insforge Auth |
+| **API** | FastAPI | FastAPI on Fly.io |
+| **UI** | Streamlit | Streamlit on Fly.io |
 
 ---
 
 ## Project structure
 
+Every layer has **one responsibility**. Dependencies only flow downward — upper layers call lower ones, never the reverse.
+
 ```
-Rag-Assist/
-├── agent/                  # LangGraph CRAG agent
-│   ├── graph.py            # Graph wiring & conditional edges
-│   ├── nodes.py            # Node functions (retrieve, grade, generate …)
-│   ├── prompts.py          # All LLM prompts in one place
-│   └── state.py            # Shared GraphState TypedDict
+rag-assist/
 │
-├── providers/              # Pluggable backends (swap via .env)
-│   ├── embeddings.py       # ollama | google | openai
-│   └── vectorstore.py      # pinecone | postgres
+├── core/                        # Shared foundation
+│   └── config.py                # Single source of all settings (pydantic-settings)
+│                                # No scattered os.getenv() anywhere else
 │
-├── api.py                  # FastAPI — all REST endpoints
-├── app.py                  # Streamlit — chat UI
-├── ingest.py               # CLI ingestion (local folder or Google Drive)
+├── rag/                         # ★ The RAG pipeline — understand AI here
+│   ├── pipeline.py              # Public entry point: ask(question) → answer
+│   ├── graph.py                 # LangGraph wiring + full flow diagram
+│   ├── state.py                 # GraphState — data shared between all nodes
+│   ├── prompts.py               # ALL LLM prompts (change AI behaviour here)
+│   ├── llm.py                   # Shared LLM client (Groq)
+│   └── nodes/                   # One file = one step in the pipeline
+│       ├── intent.py            # Step 1 — chitchat or RAG?
+│       ├── retrieve.py          # Step 2 — fetch chunks from vector DB
+│       ├── grade.py             # Step 3 — filter irrelevant chunks
+│       ├── rewrite.py           # Step 4 — improve question if retrieval failed
+│       ├── generate.py          # Step 5 — write answer from context
+│       └── check.py             # Step 6 — hallucination + usefulness check
 │
-├── Dockerfile.api          # Docker image for the API
-├── Dockerfile.ui           # Docker image for the UI
-├── docker-compose.yml      # Production compose (API + UI)
-├── docker-compose.dev.yml  # Local dev compose (Postgres + pgAdmin)
+├── services/                    # Application business logic
+│   ├── chat.py                  # Calls rag.pipeline.ask()
+│   ├── ingest.py                # File reading, chunking, embedding, storing
+│   └── auth.py                  # Insforge signup, login, token validation
 │
-├── pyproject.toml          # Dependencies (managed by uv)
-├── Makefile                # One-word commands
-└── .env.example            # All config options documented
+├── providers/                   # Pluggable backends — swap via .env
+│   ├── embeddings.py            # ollama | google | openai
+│   └── vectorstore.py           # postgres | pinecone
+│
+├── api/                         # HTTP layer — routes call services, nothing else
+│   ├── main.py                  # FastAPI app factory + router registration
+│   ├── deps.py                  # Shared dependencies (require_user)
+│   └── routers/
+│       ├── auth.py              # POST /auth/signup  POST /auth/login  GET /auth/me
+│       ├── chat.py              # POST /chat
+│       ├── ingest.py            # POST /ingest/upload|store  GET /ingest/status|jobs
+│       └── documents.py         # GET /documents  DELETE /documents/{source}
+│
+├── ui/                          # Streamlit UI
+│   ├── main.py                  # Entry point — CSS, session state, tab routing
+│   ├── client.py                # All API calls in one place (auth headers auto-injected)
+│   └── pages/
+│       ├── auth_page.py         # Login / signup screen
+│       ├── chat_page.py         # Chat tab
+│       ├── upload_page.py       # Upload + ingestion progress tab
+│       └── kb_page.py           # Knowledge base document list tab
+│
+├── ingest_cli.py                # CLI ingestion (local folder or Google Drive)
+├── Dockerfile.api               # Docker image for the API
+├── Dockerfile.ui                # Docker image for the UI
+├── docker-compose.yml           # Production (API + UI)
+├── docker-compose.dev.yml       # Local dev (Postgres + pgAdmin)
+├── pyproject.toml               # Dependencies (managed by uv)
+└── Makefile                     # One-word commands
 ```
+
+---
+
+## The Corrective RAG pipeline
+
+The core of this application. Every step is isolated in its own file under `rag/nodes/`.
+
+```
+User question
+      │
+      ▼
+┌─────────────────┐
+│ classify_intent │  ← Is this a greeting or a real question?
+└────────┬────────┘
+         │
+    ┌────┴────┐
+  "chat"    "rag"
+    │          │
+    ▼          ▼
+chitchat    retrieve    ← Embed question, fetch top-5 chunks from vector DB
+  │          │
+  ▼          ▼
+ END    grade_documents  ← Ask LLM: is each chunk relevant? Keep only "yes"
+              │
+      ┌───────┴────────┐
+  relevant         not relevant
+      │                 │
+      │         rewrite_question  ← Rephrase with better terminology
+      │                 │
+      │            (retry retrieve — max 2 times)
+      │
+      ▼
+  generate        ← Write answer using only the retrieved context
+      │
+      ▼
+  route_after_check
+      ├── hallucinated? → regenerate  (max 2 times)
+      ├── not useful?   → rewrite     (if retries remain)
+      └── good          → END ✓
+```
+
+**To debug a specific step:** open its file in `rag/nodes/`, read it in isolation.
+**To change AI behaviour:** edit `rag/prompts.py`.
+**To understand the flow:** read `rag/graph.py` — the diagram is in the docstring.
 
 ---
 
@@ -89,20 +171,21 @@ Rag-Assist/
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for Postgres
 - [Ollama](https://ollama.com/) — for local embeddings
 
-### 1. Clone and install
+### 1 — Install
 
 ```bash
-git clone https://github.com/your-username/documind.git
-cd documind
+git clone https://github.com/Nishant375/Rag-Assist.git
+cd Rag-Assist
 
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
 
 # Install all dependencies
 uv sync
 ```
 
-### 2. Configure
+### 2 — Configure
 
 ```bash
 cp .env.example .env
@@ -111,182 +194,321 @@ cp .env.example .env
 Open `.env` and fill in the required keys:
 
 ```bash
-# Required
-GROQ_API_KEY=gsk_...          # free at console.groq.com
+# Required — get free key at console.groq.com
+GROQ_API_KEY=gsk_...
 
-# Choose your embedding provider
-EMBED_PROVIDER=ollama          # local (default)
-# EMBED_PROVIDER=google        # cloud (for Insforge deploy)
-# GOOGLE_API_KEY=AIza...       # required if using google
+# Embedding provider (local dev)
+EMBED_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_EMBED_MODEL=nomic-embed-text
 
-# Choose your vector store
-VECTOR_STORE=postgres          # recommended
+# Vector store
+VECTOR_STORE=postgres
 POSTGRES_URL=postgresql://raguser:ragpass@localhost:5432/ragdb
 
-# Or use Pinecone
-# VECTOR_STORE=pinecone
-# PINECONE_API_KEY=pcsk_...    # free at app.pinecone.io
+# Insforge Auth — get from insforge.dev
+INSFORGE_OSS_HOST=https://your-app.ap-southeast.insforge.app
+INSFORGE_ANON_KEY=eyJ...
 ```
 
-### 3. Pull embedding model (if using Ollama)
+### 3 — Pull embedding model
 
 ```bash
 ollama pull nomic-embed-text
 ```
 
-### 4. Start Postgres
+### 4 — Start Postgres
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### 5. Run the app
+This starts Postgres + pgvector on port 5432 and pgAdmin (visual DB browser) on port 5050.
+
+### 5 — Run
 
 ```bash
-# Terminal 1 — API
-make api
+# Terminal 1 — API backend
+make api       # http://localhost:8000/docs
 
 # Terminal 2 — UI
-make chat
+make chat      # http://localhost:8501
 ```
 
-Open **http://localhost:8501**
+---
+
+## Usage
+
+### Sign up & log in
+
+Open **http://localhost:8501** → click **Sign up** tab → create account → log in.
+
+### Upload documents
+
+1. Go to the **Upload Documents** tab
+2. Drag and drop your files (PDF, DOCX, TXT, MD)
+3. Click **① Upload files** — files are saved to the server
+4. Click **② Store in Knowledge Base** — files are embedded and stored in Postgres
+5. Watch the live progress log
+
+### Chat
+
+1. Go to the **Chat** tab
+2. Ask any question about your documents
+3. Or just say "hi" — the agent knows when to use RAG and when to just chat
+
+### Manage documents
+
+- Go to the **Knowledge Base** tab to see all indexed files
+- See chunk count per file
+- Delete any file from the knowledge base
 
 ---
 
 ## API reference
 
-The FastAPI backend exposes these endpoints (Swagger UI at **http://localhost:8000/docs**):
+All endpoints are documented interactively at **http://localhost:8000/docs**
+
+### Public endpoints (no auth required)
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness check |
+| `POST` | `/auth/signup` | Create a new account |
+| `POST` | `/auth/login` | Login — returns JWT token |
+
+### Protected endpoints (Bearer token required)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/auth/me` | Get current user info |
 | `POST` | `/chat` | Send a message, get an answer |
 | `POST` | `/ingest/upload` | Upload files to server |
-| `POST` | `/ingest/store/{upload_id}` | Trigger embedding + storage |
+| `POST` | `/ingest/store/{upload_id}` | Trigger embedding + vector storage |
 | `GET` | `/ingest/status/{job_id}` | Poll ingestion job progress |
 | `GET` | `/ingest/jobs` | List all ingestion jobs |
-| `GET` | `/documents` | List all stored documents |
-| `DELETE` | `/documents/{source}` | Delete a document from the KB |
+| `GET` | `/documents` | List all stored documents with chunk counts |
+| `DELETE` | `/documents/{source}` | Delete a document from the knowledge base |
 
-### Example
+### Example flow
 
 ```bash
-# Upload a file
+# 1. Login
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "yourpassword"}'
+# → { "access_token": "eyJ...", "token_type": "bearer" }
+
+# 2. Upload files
 curl -X POST http://localhost:8000/ingest/upload \
+  -H "Authorization: Bearer eyJ..." \
   -F "files=@report.pdf"
 # → { "upload_id": "a3f1bc22", "files": ["report.pdf"] }
 
-# Trigger storage
-curl -X POST http://localhost:8000/ingest/store/a3f1bc22
+# 3. Start ingestion
+curl -X POST http://localhost:8000/ingest/store/a3f1bc22 \
+  -H "Authorization: Bearer eyJ..."
 # → { "job_id": "b7e29d11" }
 
-# Poll progress
-curl http://localhost:8000/ingest/status/b7e29d11
-# → { "status": "done", "chunks_total": 342 }
+# 4. Poll progress
+curl http://localhost:8000/ingest/status/b7e29d11 \
+  -H "Authorization: Bearer eyJ..."
+# → { "status": "done", "chunks_total": 342, "files_done": 1 }
 
-# Chat
+# 5. Chat
 curl -X POST http://localhost:8000/chat \
+  -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{"message": "What does the report say about revenue?"}'
-# → { "answer": "...", "steps": [...] }
+# → { "answer": "According to the report...", "steps": [...] }
+
+# 6. List documents
+curl http://localhost:8000/documents \
+  -H "Authorization: Bearer eyJ..."
+# → [{ "source": "report.pdf", "chunks": 342, "store": "postgres" }]
 ```
 
 ---
 
 ## Switching providers
 
-Everything is controlled by `.env` — no code changes needed.
+Everything is controlled by `.env` — **no code changes needed**.
 
 ### Embedding providers
 
 ```bash
-# Local (default, needs Ollama running)
+# Local (Ollama) — default for development
 EMBED_PROVIDER=ollama
 OLLAMA_EMBED_MODEL=nomic-embed-text
+OLLAMA_BASE_URL=http://localhost:11434
 
-# Google (free, works on cloud)
+# Google — free, best for cloud/Insforge deploy
 EMBED_PROVIDER=google
 GOOGLE_API_KEY=AIza...
+GOOGLE_EMBED_MODEL=models/gemini-embedding-001
 
-# OpenAI
+# OpenAI — paid, highest quality
 EMBED_PROVIDER=openai
 OPENAI_API_KEY=sk-...
+OPENAI_EMBED_MODEL=text-embedding-3-small
 ```
 
 ### Vector stores
 
 ```bash
-# Postgres + pgvector (recommended)
+# Postgres + pgvector — recommended (works locally and on Insforge)
 VECTOR_STORE=postgres
 POSTGRES_URL=postgresql://user:pass@host:5432/db
 
-# Pinecone
+# Pinecone — managed cloud, free tier
 VECTOR_STORE=pinecone
 PINECONE_API_KEY=pcsk_...
-PINECONE_INDEX=documind-index
+PINECONE_INDEX=rag-assist-index
 ```
 
-> **Important:** Always re-upload your documents after switching providers — embeddings from different models are incompatible.
+> **Important:** Always re-upload your documents after switching providers.
+> Embeddings from different models are not compatible with each other.
 
 ---
 
 ## Deploy to Insforge
 
-Insforge provides built-in Postgres + pgvector and Custom Compute for containers. No Ollama needed — use Google embeddings (free).
+Insforge provides built-in Postgres + pgvector and container hosting (Fly.io).
+No Ollama needed — use Google embeddings instead.
+
+### Prerequisites
+
+- [Insforge account](https://insforge.dev)
+- [Node.js](https://nodejs.org) for the CLI
+- [flyctl](https://fly.io/docs/flyctl/install/) for source-mode deploys
+
+### 1 — Install CLI and link project
 
 ```bash
-# 1. Install Insforge CLI
-npm install -g @insforge/cli
-insforge login
-
-# 2. Link your project
-insforge link <project-id>
-
-# 3. Set environment variables
-insforge secrets set GROQ_API_KEY=gsk_...
-insforge secrets set GOOGLE_API_KEY=AIza...
-insforge secrets set EMBED_PROVIDER=google
-insforge secrets set VECTOR_STORE=postgres
-insforge secrets set POSTGRES_URL=postgresql://...   # from Insforge dashboard
-insforge secrets set EMBED_DIM=768
-
-# 4. Deploy
-insforge compute deploy --name documind-api --dockerfile Dockerfile.api --port 8000
-insforge secrets set API_URL=https://documind-api.insforge.app
-insforge compute deploy --name documind-ui  --dockerfile Dockerfile.ui  --port 8501
+npx @insforge/cli whoami     # verify login
+npx @insforge/cli list       # find your project ID
+npx @insforge/cli link --project-id <id> --org-id <org-id>
 ```
+
+### 2 — Create the embeddings table
+
+```bash
+npx @insforge/cli db query "CREATE EXTENSION IF NOT EXISTS vector;"
+npx @insforge/cli db query "
+CREATE TABLE IF NOT EXISTS embeddings (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(768) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS embeddings_source_idx ON embeddings (source);
+CREATE INDEX IF NOT EXISTS embeddings_vector_idx ON embeddings USING hnsw (embedding vector_cosine_ops);
+"
+```
+
+### 3 — Set secrets
+
+```bash
+npx @insforge/cli secrets add GROQ_API_KEY "gsk_..."
+npx @insforge/cli secrets add GOOGLE_API_KEY "AIza..."
+npx @insforge/cli secrets add EMBED_PROVIDER "google"
+npx @insforge/cli secrets add EMBED_DIM "768"
+npx @insforge/cli secrets add VECTOR_STORE "postgres"
+npx @insforge/cli secrets add POSTGRES_URL "postgresql://..."   # from Insforge dashboard → Database
+npx @insforge/cli secrets add INSFORGE_OSS_HOST "https://your-app.ap-southeast.insforge.app"
+npx @insforge/cli secrets add INSFORGE_ANON_KEY "eyJ..."
+npx @insforge/cli secrets add GROQ_MODEL "llama-3.1-8b-instant"
+npx @insforge/cli secrets add CHUNK_SIZE "400"
+npx @insforge/cli secrets add CHUNK_OVERLAP "80"
+```
+
+### 4 — Deploy API
+
+```bash
+npx @insforge/cli compute deploy . \
+  --name rag-assist-api \
+  --dockerfile Dockerfile.api \
+  --port 8000 \
+  --memory 1024
+```
+
+Copy the endpoint URL (e.g. `https://rag-assist-api-<id>.fly.dev`)
+
+### 5 — Deploy UI
+
+```bash
+npx @insforge/cli secrets add API_URL "https://rag-assist-api-<id>.fly.dev"
+
+npx @insforge/cli compute deploy . \
+  --name rag-assist-ui \
+  --dockerfile Dockerfile.ui \
+  --port 8501 \
+  --memory 512
+```
+
+### 6 — Verify
+
+```bash
+npx @insforge/cli compute list
+```
+
+---
+
+## Debugging guide
+
+| Problem | Where to look |
+|---|---|
+| Wrong answer | `rag/nodes/generate.py` — check the prompt |
+| Answer is hallucinated | `rag/nodes/check.py` — hallucination checker |
+| Answer is vague / unhelpful | `rag/nodes/check.py` — usefulness checker |
+| Retrieval returning wrong chunks | `rag/nodes/retrieve.py` — check TOP_K |
+| Grading wrong docs | `rag/nodes/grade.py` — check relevance prompt |
+| Question not being rewritten | `rag/nodes/grade.py` — check MAX_RETRIEVAL_ATTEMPTS |
+| "hi" going to RAG | `rag/nodes/intent.py` — tune INTENT_CLASSIFIER prompt |
+| Embedding errors | `providers/embeddings.py` |
+| DB connection errors | `providers/vectorstore.py` |
+| Upload not working | `services/ingest.py` |
+| Auth errors | `services/auth.py` |
+| API route broken | `api/routers/` — find the relevant router |
+| Config missing | `core/config.py` — add the setting |
 
 ---
 
 ## Available commands
 
 ```bash
-make install          # Install dependencies
-make api              # Start FastAPI backend  (localhost:8000)
-make chat             # Start Streamlit UI     (localhost:8501)
-make ingest SOURCE=./your-docs   # Ingest a local folder
-make ingest-drive ID=<folder-id> # Ingest from Google Drive
+make install                     # Install all dependencies (run once)
+make api                         # Start FastAPI — http://localhost:8000/docs
+make chat                        # Start Streamlit UI — http://localhost:8501
+make ingest SOURCE=./my-docs     # Ingest a local folder of documents
+make ingest-drive ID=<folder-id> # Ingest from a Google Drive folder
 ```
 
 ---
 
 ## Environment variables
 
-See [`.env.example`](.env.example) for the full list with descriptions.
+Full reference — see [`.env.example`](.env.example) for a template.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `GROQ_API_KEY` | ✅ | — | Groq API key |
-| `GROQ_MODEL` | | `llama-3.1-8b-instant` | Groq model |
+| `GROQ_API_KEY` | ✅ | — | Groq API key — free at [console.groq.com](https://console.groq.com) |
+| `GROQ_MODEL` | | `llama-3.1-8b-instant` | Groq model name |
 | `EMBED_PROVIDER` | | `ollama` | `ollama` \| `google` \| `openai` |
-| `VECTOR_STORE` | | `pinecone` | `pinecone` \| `postgres` |
-| `POSTGRES_URL` | if postgres | — | Postgres connection string |
-| `PINECONE_API_KEY` | if pinecone | — | Pinecone API key |
-| `GOOGLE_API_KEY` | if google | — | Google AI API key |
-| `EMBED_DIM` | | `768` | Embedding dimension |
-| `CHUNK_SIZE` | | `400` | Words per chunk |
-| `API_URL` | | `http://localhost:8000` | FastAPI base URL for UI |
+| `EMBED_DIM` | | `768` | Embedding vector dimension |
+| `OLLAMA_BASE_URL` | | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_EMBED_MODEL` | | `nomic-embed-text` | Ollama embedding model |
+| `GOOGLE_API_KEY` | if google | — | Google AI key — free at [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| `OPENAI_API_KEY` | if openai | — | OpenAI API key |
+| `VECTOR_STORE` | | `postgres` | `postgres` \| `pinecone` |
+| `POSTGRES_URL` | if postgres | — | Full Postgres connection string |
+| `PINECONE_API_KEY` | if pinecone | — | Pinecone API key — free at [app.pinecone.io](https://app.pinecone.io) |
+| `PINECONE_INDEX` | if pinecone | `crag-index` | Pinecone index name |
+| `INSFORGE_OSS_HOST` | ✅ | — | Insforge project URL |
+| `INSFORGE_ANON_KEY` | ✅ | — | Insforge anonymous key |
+| `CHUNK_SIZE` | | `400` | Words per document chunk |
+| `CHUNK_OVERLAP` | | `80` | Overlap between consecutive chunks |
+| `API_URL` | | `http://localhost:8000` | FastAPI base URL (used by the UI) |
 
 ---
 
