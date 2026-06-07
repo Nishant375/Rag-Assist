@@ -61,10 +61,12 @@ def login(email: str, password: str) -> dict:
 def get_user(token: str) -> dict:
     """Validate a JWT and return the user. Raises AuthError if invalid."""
     resp = requests.get(
-        f"{settings.insforge_oss_host}/api/auth/me",
+        f"{settings.insforge_oss_host}/api/auth/sessions/current",
         headers={"Authorization": f"Bearer {token}"},
         timeout=5,
     )
     if not resp.ok:
         raise AuthError("Invalid or expired token")
-    return resp.json()
+    data = resp.json()
+    # Response shape: { user: { id, email, ... }, accessToken, ... }
+    return data.get("user", data)
