@@ -15,14 +15,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env",          # loaded in local dev, ignored if file not present
         env_file_encoding="utf-8",
+        env_ignore_empty=True,    # cloud containers pass env vars directly — no file needed
         case_sensitive=False,
         extra="ignore",
     )
 
     # ── LLM ──────────────────────────────────────────────────────────────────
-    groq_api_key: str
+    groq_api_key: str = ""
     groq_model:   str = "llama-3.1-8b-instant"
 
     # ── Embedding provider ────────────────────────────────────────────────────
