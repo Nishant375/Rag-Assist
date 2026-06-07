@@ -54,9 +54,12 @@ jobs:
     # Settings → Environments → production → Required reviewers so this job pauses
     # for manual approval before it runs. Until approved, nothing is deployed.
     environment: production
-    # Machine auth: token + project override, no interactive login, no password.
+    # Machine auth: non-interactive email/password login. OAuth access tokens
+    # are short-lived (hours) and can't be used as a static CI secret, so we log
+    # in with credentials each run. Use a dedicated InsForge account/password.
     env:
-      INSFORGE_ACCESS_TOKEN: ${{ secrets.INSFORGE_ACCESS_TOKEN }}
+      INSFORGE_EMAIL: ${{ secrets.INSFORGE_EMAIL }}
+      INSFORGE_PASSWORD: ${{ secrets.INSFORGE_PASSWORD }}
       INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}
       # Discourage any interactive prompts in CI.
       CI: "true"
@@ -68,13 +71,20 @@ jobs:
       - name: Verify deploy credentials are present
         run: |
           missing=0
-          for v in INSFORGE_ACCESS_TOKEN INSFORGE_PROJECT_ID; do
+          for v in INSFORGE_EMAIL INSFORGE_PASSWORD INSFORGE_PROJECT_ID; do
             if [ -z "${!v}" ]; then echo "::error::Required secret $v is not set"; missing=1; fi
           done
           if [ -z "${{ secrets.INSFORGE_API_SERVICE_ID }}" ]; then
             echo "::error::Required secret INSFORGE_API_SERVICE_ID is not set"; missing=1
           fi
           [ "$missing" = "0" ] || { echo "Set the secrets in Settings → Secrets and variables → Actions, then re-run."; exit 1; }
+
+      - name: Authenticate InsForge CLI
+        run: |
+          npx -y @insforge/cli login --email --json
+          npx -y @insforge/cli link \
+            --project-id "${{ secrets.INSFORGE_PROJECT_ID }}" \
+            --org-id "${{ secrets.INSFORGE_ORG_ID }}" -y
 
       - name: Lowercase image base
         id: img
