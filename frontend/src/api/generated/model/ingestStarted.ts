@@ -7,7 +7,7 @@
  */
 
 export interface IngestStarted {
-  job_id: string;
   files: string[];
+  job_id: string;
   message?: string;
 }

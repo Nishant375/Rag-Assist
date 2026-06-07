@@ -5,13 +5,13 @@
  * Upload your documents and chat with them — Corrective RAG + Groq + pgvector
  * OpenAPI spec version: 1.0.0
  */
-import type { ValidationErrorLocItem } from './validationErrorLocItem';
 import type { ValidationErrorCtx } from './validationErrorCtx';
+import type { ValidationErrorLocItem } from './validationErrorLocItem';
 
 export interface ValidationError {
+  ctx?: ValidationErrorCtx;
+  input?: unknown;
   loc: ValidationErrorLocItem[];
   msg: string;
   type: string;
-  input?: unknown;
-  ctx?: ValidationErrorCtx;
 }

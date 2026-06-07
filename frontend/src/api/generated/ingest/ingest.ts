@@ -36,134 +36,97 @@ import { customInstance } from '../../mutator';
 
 
 /**
- * @summary Upload
+ * @summary List Jobs
  */
-export const uploadIngestUploadPost = (
-    bodyUploadIngestUploadPost: BodyUploadIngestUploadPost,
- signal?: AbortSignal
-) => {
-      
-      const formData = new FormData();
-bodyUploadIngestUploadPost.files.forEach(value => formData.append(`files`, value));
-
-      return customInstance<unknown>(
-      {url: `/ingest/upload`, method: 'POST',
-      headers: {'Content-Type': 'multipart/form-data', },
-       data: formData, signal
-    },
-      );
-    }
-  
-
-
-export const getUploadIngestUploadPostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext> => {
-
-const mutationKey = ['uploadIngestUploadPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadIngestUploadPost>>, {data: BodyUploadIngestUploadPost}> = (props) => {
-          const {data} = props ?? {};
-
-          return  uploadIngestUploadPost(data,)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UploadIngestUploadPostMutationResult = NonNullable<Awaited<ReturnType<typeof uploadIngestUploadPost>>>
-    export type UploadIngestUploadPostMutationBody = BodyUploadIngestUploadPost
-    export type UploadIngestUploadPostMutationError = HTTPValidationError
-
-    /**
- * @summary Upload
- */
-export const useUploadIngestUploadPost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof uploadIngestUploadPost>>,
-        TError,
-        {data: BodyUploadIngestUploadPost},
-        TContext
-      > => {
-
-      const mutationOptions = getUploadIngestUploadPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
- * @summary Store
- */
-export const storeIngestStoreUploadIdPost = (
-    uploadId: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<IngestStarted>(
-      {url: `/ingest/store/${uploadId}`, method: 'POST', signal
-    },
-      );
-    }
-  
-
-
-export const getStoreIngestStoreUploadIdPostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext> => {
-
-const mutationKey = ['storeIngestStoreUploadIdPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, {uploadId: string}> = (props) => {
-          const {uploadId} = props ?? {};
-
-          return  storeIngestStoreUploadIdPost(uploadId,)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type StoreIngestStoreUploadIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>>
+export const listJobsIngestJobsGet = (
     
-    export type StoreIngestStoreUploadIdPostMutationError = HTTPValidationError
-
-    /**
- * @summary Store
- */
-export const useStoreIngestStoreUploadIdPost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>,
-        TError,
-        {uploadId: string},
-        TContext
-      > => {
-
-      const mutationOptions = getStoreIngestStoreUploadIdPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<unknown>(
+      {url: `/ingest/jobs`, method: 'GET', signal
+    },
+      );
     }
-    /**
+  
+
+
+
+export const getListJobsIngestJobsGetQueryKey = () => {
+    return [
+    `/ingest/jobs`
+    ] as const;
+    }
+
+    
+export const getListJobsIngestJobsGetQueryOptions = <TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJobsIngestJobsGetQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobsIngestJobsGet>>> = ({ signal }) => listJobsIngestJobsGet(signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData> }
+}
+
+export type ListJobsIngestJobsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listJobsIngestJobsGet>>>
+export type ListJobsIngestJobsGetQueryError = unknown
+
+
+export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listJobsIngestJobsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listJobsIngestJobsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
+export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listJobsIngestJobsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listJobsIngestJobsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
+export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
+/**
+ * @summary List Jobs
+ */
+
+export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> } {
+
+  const queryOptions = getListJobsIngestJobsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+/**
  * @summary Status
  */
 export const statusIngestStatusJobIdGet = (
@@ -255,93 +218,131 @@ export function useStatusIngestStatusJobIdGet<TData = Awaited<ReturnType<typeof 
 
 
 /**
- * @summary List Jobs
+ * @summary Store
  */
-export const listJobsIngestJobsGet = (
-    
+export const storeIngestStoreUploadIdPost = (
+    uploadId: string,
  signal?: AbortSignal
 ) => {
       
       
-      return customInstance<unknown>(
-      {url: `/ingest/jobs`, method: 'GET', signal
+      return customInstance<IngestStarted>(
+      {url: `/ingest/store/${uploadId}`, method: 'POST', signal
     },
       );
     }
   
 
 
+export const getStoreIngestStoreUploadIdPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext> => {
 
-export const getListJobsIngestJobsGetQueryKey = () => {
-    return [
-    `/ingest/jobs`
-    ] as const;
-    }
+const mutationKey = ['storeIngestStoreUploadIdPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
 
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, {uploadId: string}> = (props) => {
+          const {uploadId} = props ?? {};
+
+          return  storeIngestStoreUploadIdPost(uploadId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StoreIngestStoreUploadIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>>
     
-export const getListJobsIngestJobsGetQueryOptions = <TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
+    export type StoreIngestStoreUploadIdPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Store
+ */
+export const useStoreIngestStoreUploadIdPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>, TError,{uploadId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof storeIngestStoreUploadIdPost>>,
+        TError,
+        {uploadId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getStoreIngestStoreUploadIdPostMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary Upload
+ */
+export const uploadIngestUploadPost = (
+    bodyUploadIngestUploadPost: BodyUploadIngestUploadPost,
+ signal?: AbortSignal
 ) => {
+      
+      const formData = new FormData();
+bodyUploadIngestUploadPost.files.forEach(value => formData.append(`files`, value));
 
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListJobsIngestJobsGetQueryKey();
-
+      return customInstance<unknown>(
+      {url: `/ingest/upload`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData, signal
+    },
+      );
+    }
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobsIngestJobsGet>>> = ({ signal }) => listJobsIngestJobsGet(signal);
+
+export const getUploadIngestUploadPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext> => {
+
+const mutationKey = ['uploadIngestUploadPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
 
       
 
-      
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData> }
-}
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadIngestUploadPost>>, {data: BodyUploadIngestUploadPost}> = (props) => {
+          const {data} = props ?? {};
 
-export type ListJobsIngestJobsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listJobsIngestJobsGet>>>
-export type ListJobsIngestJobsGetQueryError = unknown
+          return  uploadIngestUploadPost(data,)
+        }
+
+        
 
 
-export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listJobsIngestJobsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listJobsIngestJobsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
-export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listJobsIngestJobsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listJobsIngestJobsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
-export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> }
-/**
- * @summary List Jobs
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadIngestUploadPostMutationResult = NonNullable<Awaited<ReturnType<typeof uploadIngestUploadPost>>>
+    export type UploadIngestUploadPostMutationBody = BodyUploadIngestUploadPost
+    export type UploadIngestUploadPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Upload
  */
+export const useUploadIngestUploadPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadIngestUploadPost>>, TError,{data: BodyUploadIngestUploadPost}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadIngestUploadPost>>,
+        TError,
+        {data: BodyUploadIngestUploadPost},
+        TContext
+      > => {
 
-export function useListJobsIngestJobsGet<TData = Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobsIngestJobsGet>>, TError, TData>>, }
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> } {
+      const mutationOptions = getUploadIngestUploadPostMutationOptions(options);
 
-  const queryOptions = getListJobsIngestJobsGetQueryOptions(options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData> };
-
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
-}
-
-
-
+      return useMutation(mutationOptions, queryClient);
+    }
+    

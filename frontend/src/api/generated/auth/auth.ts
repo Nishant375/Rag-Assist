@@ -35,70 +35,6 @@ import { customInstance } from '../../mutator';
 
 
 /**
- * @summary Signup Route
- */
-export const signupRouteAuthSignupPost = (
-    authRequest: AuthRequest,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<unknown>(
-      {url: `/auth/signup`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: authRequest, signal
-    },
-      );
-    }
-  
-
-
-export const getSignupRouteAuthSignupPostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext> => {
-
-const mutationKey = ['signupRouteAuthSignupPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, {data: AuthRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  signupRouteAuthSignupPost(data,)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SignupRouteAuthSignupPostMutationResult = NonNullable<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>>
-    export type SignupRouteAuthSignupPostMutationBody = AuthRequest
-    export type SignupRouteAuthSignupPostMutationError = HTTPValidationError
-
-    /**
- * @summary Signup Route
- */
-export const useSignupRouteAuthSignupPost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof signupRouteAuthSignupPost>>,
-        TError,
-        {data: AuthRequest},
-        TContext
-      > => {
-
-      const mutationOptions = getSignupRouteAuthSignupPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
  * @summary Login Route
  */
 export const loginRouteAuthLoginPost = (
@@ -253,3 +189,68 @@ export function useMeRouteAuthMeGet<TData = Awaited<ReturnType<typeof meRouteAut
 
 
 
+/**
+ * @summary Signup Route
+ */
+export const signupRouteAuthSignupPost = (
+    authRequest: AuthRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<unknown>(
+      {url: `/auth/signup`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getSignupRouteAuthSignupPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext> => {
+
+const mutationKey = ['signupRouteAuthSignupPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, {data: AuthRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  signupRouteAuthSignupPost(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignupRouteAuthSignupPostMutationResult = NonNullable<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>>
+    export type SignupRouteAuthSignupPostMutationBody = AuthRequest
+    export type SignupRouteAuthSignupPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Signup Route
+ */
+export const useSignupRouteAuthSignupPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupRouteAuthSignupPost>>, TError,{data: AuthRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof signupRouteAuthSignupPost>>,
+        TError,
+        {data: AuthRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getSignupRouteAuthSignupPostMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    

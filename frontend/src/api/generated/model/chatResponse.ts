@@ -9,6 +9,6 @@ import type { ChatResponseRewrittenQuestion } from './chatResponseRewrittenQuest
 
 export interface ChatResponse {
   answer: string;
-  steps: string[];
   rewritten_question?: ChatResponseRewrittenQuestion;
+  steps: string[];
 }

@@ -30,17 +30,24 @@ web/
 
 ## API client codegen (the "copy JSON, run one command" flow)
 
-The backend serves its OpenAPI spec at `GET /openapi.json`. To regenerate the
-typed client + hooks after the API changes:
+The backend FastAPI app is the single source of truth. After changing the API,
+regenerate the spec snapshot **and** the typed client with one command from the
+repo root:
 
 ```bash
-# 1. Refresh the spec snapshot from the running backend
-curl https://<your-api-host>/openapi.json -o openapi.json
-
-# 2. Generate the client into src/api/generated/
-npm run gen
+make gen      # refresh frontend/openapi.json from backend code, then run Orval
 ```
 
+Under the hood:
+1. `make spec` dumps `app.openapi()` → `frontend/openapi.json` (no server needed).
+2. `npm run gen` (Orval) regenerates `src/api/generated/` from that snapshot.
+
+Commit both `openapi.json` and the regenerated `src/api/generated/`.
+
+> **CI enforces sync:** the `agent-service` pipeline fails if `openapi.json`
+> drifts from the backend code — a forgotten `make gen` turns the build red
+> instead of silently shipping a stale client.
+>
 > Requires Node ≥ 18.19 (Orval). Use `nvm use 24` if your default Node is older.
 
 Each endpoint becomes a React Query hook, e.g. `useChatRouteChatPost()`,

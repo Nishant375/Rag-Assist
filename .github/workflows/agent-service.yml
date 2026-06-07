@@ -43,6 +43,25 @@ jobs:
       - name: Build API image (smoke test)
         run: docker build -f agent-service/Dockerfile -t rag-assist-api:ci agent-service
 
+      # Guarantee the frontend's OpenAPI snapshot matches the backend code.
+      # Reuses the image just built — exports the live spec and compares it
+      # (value-wise, formatting-agnostic) to the committed frontend/openapi.json.
+      - name: Check frontend OpenAPI spec is in sync
+        run: |
+          docker run --rm rag-assist-api:ci \
+            python -c "import json; from api.main import app; print(json.dumps(app.openapi()))" \
+            > /tmp/current-openapi.json
+          python - <<'PY'
+          import json, sys
+          current = json.load(open("/tmp/current-openapi.json"))
+          committed = json.load(open("frontend/openapi.json"))
+          if current != committed:
+              print("::error::frontend/openapi.json is out of date with the backend API. "
+                    "Run `make gen` and commit the updated spec + generated client.")
+              sys.exit(1)
+          print("OpenAPI spec in sync ✅")
+          PY
+
   # ── Deploy (manual) ─────────────────────────────────────────────────────────
   deploy:
     name: Deploy agent service

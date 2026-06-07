@@ -1,4 +1,4 @@
-.PHONY: install api ingest ingest-drive web web-install gen
+.PHONY: install api ingest ingest-drive web web-install spec gen
 
 # ── Backend (agent-service) ────────────────────────────────────────────────
 
@@ -28,6 +28,10 @@ web-install:
 web:
 	cd frontend && npm run dev
 
-## Regenerate the typed API client from the backend OpenAPI spec
-gen:
+## Refresh the committed OpenAPI spec from the backend code
+spec:
+	cd agent-service && uv run python scripts/export_openapi.py ../frontend/openapi.json
+
+## Regenerate the typed API client (refresh spec from backend, then run Orval)
+gen: spec
 	cd frontend && npm run gen
