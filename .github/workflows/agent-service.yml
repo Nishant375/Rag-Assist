@@ -1,0 +1,133 @@
+name: Agent Service
+
+# Pipeline for the backend (agent-service/): FastAPI + Corrective RAG.
+#   • CI  — runs automatically on every push to main and every PR.
+#   • Deploy — MANUAL ("Run workflow"). Builds the image, pushes to GHCR, and
+#     rolls the InsForge compute service. The manual trigger is the approval
+#     gate (free private repos can't use Environment required reviewers).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: agent-service-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  API_HEALTH_URL: https://rag-assist-api-2c425752-0061-4a84-8efd-8af5b5022cbe.fly.dev/health
+
+jobs:
+  # ── CI ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Agent service build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax / import compile check
+        run: python -m compileall -q agent-service
+
+      - name: Build API image (smoke test)
+        run: docker build -f agent-service/Dockerfile -t rag-assist-api:ci agent-service
+
+      # Guarantee the frontend's OpenAPI snapshot matches the backend code.
+      # Reuses the image just built — exports the live spec and compares it
+      # (value-wise, formatting-agnostic) to the committed frontend/openapi.json.
+      - name: Check frontend OpenAPI spec is in sync
+        run: |
+          docker run --rm rag-assist-api:ci \
+            python -c "import json; from api.main import app; print(json.dumps(app.openapi()))" \
+            > /tmp/current-openapi.json
+          python - <<'PY'
+          import json, sys
+          current = json.load(open("/tmp/current-openapi.json"))
+          committed = json.load(open("frontend/openapi.json"))
+          if current != committed:
+              print("::error::frontend/openapi.json is out of date with the backend API. "
+                    "Run `make gen` and commit the updated spec + generated client.")
+              sys.exit(1)
+          print("OpenAPI spec in sync ✅")
+          PY
+
+  # ── Deploy (manual) ─────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy agent service
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      INSFORGE_EMAIL: ${{ secrets.INSFORGE_EMAIL }}
+      INSFORGE_PASSWORD: ${{ secrets.INSFORGE_PASSWORD }}
+      INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify deploy credentials are present
+        run: |
+          missing=0
+          for v in INSFORGE_EMAIL INSFORGE_PASSWORD INSFORGE_PROJECT_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Required secret $v is not set"; missing=1; fi
+          done
+          if [ -z "${{ secrets.INSFORGE_API_SERVICE_ID }}" ]; then
+            echo "::error::Required secret INSFORGE_API_SERVICE_ID is not set"; missing=1
+          fi
+          [ "$missing" = "0" ] || { echo "Set the secrets in Settings → Environments → production, then re-run."; exit 1; }
+
+      - name: Authenticate InsForge CLI
+        run: |
+          npx -y @insforge/cli login --email --json
+          npx -y @insforge/cli link \
+            --project-id "${{ secrets.INSFORGE_PROJECT_ID }}" \
+            --org-id "${{ secrets.INSFORGE_ORG_ID }}" -y
+
+      - name: Lowercase image base
+        id: img
+        run: echo "base=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent-service
+          file: ./agent-service/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.img.outputs.base }}-api:latest
+            ${{ steps.img.outputs.base }}-api:${{ github.sha }}
+
+      - name: Roll API compute service to new image
+        run: |
+          npx -y @insforge/cli compute update "${{ secrets.INSFORGE_API_SERVICE_ID }}" \
+            --image "${{ steps.img.outputs.base }}-api:${{ github.sha }}"
+
+      - name: Post-deploy health check
+        run: |
+          echo "Waiting for $API_HEALTH_URL to report healthy ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$API_HEALTH_URL" | grep -q '"status":"ok"'; then
+              echo "API healthy ✅"; exit 0
+            fi
+            echo "attempt $i: not ready yet, retrying in 10s ..."; sleep 10
+          done
+          echo "::error::API did not become healthy after rollout"; exit 1

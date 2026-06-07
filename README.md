@@ -60,60 +60,44 @@ Rag-Assist lets you upload any documents (PDF, DOCX, TXT, MD), ask questions abo
 
 Every layer has **one responsibility**. Dependencies only flow downward — upper layers call lower ones, never the reverse.
 
+The repo is a monorepo with two top-level apps: **`agent-service/`** (the Python
+FastAPI + RAG backend) and **`frontend/`** (the React + TypeScript UI).
+
 ```
-rag-assist/
+Rag-Assist/
 │
-├── core/                        # Shared foundation
-│   └── config.py                # Single source of all settings (pydantic-settings)
-│                                # No scattered os.getenv() anywhere else
+├── agent-service/               # ★ Backend service — FastAPI + Corrective RAG
+│   ├── core/
+│   │   └── config.py            # Single source of all settings (pydantic-settings)
+│   ├── rag/                     # The RAG pipeline — understand AI here
+│   │   ├── pipeline.py          # Public entry point: ask(question) → answer
+│   │   ├── graph.py             # LangGraph wiring + full flow diagram
+│   │   ├── state.py             # GraphState — shared between nodes
+│   │   ├── prompts.py           # ALL LLM prompts
+│   │   ├── llm.py               # Shared LLM client (Groq)
+│   │   └── nodes/               # One file = one step (intent, retrieve, grade,
+│   │                            #   rewrite, generate, check)
+│   ├── services/                # Business logic (chat, ingest, auth)
+│   ├── providers/               # Pluggable backends — embeddings, vectorstore
+│   ├── api/                     # HTTP layer — main.py + routers/
+│   ├── ingest_cli.py            # CLI ingestion (local folder or Google Drive)
+│   ├── Dockerfile               # Container image for the API
+│   ├── pyproject.toml           # Python dependencies (managed by uv)
+│   └── uv.lock
 │
-├── rag/                         # ★ The RAG pipeline — understand AI here
-│   ├── pipeline.py              # Public entry point: ask(question) → answer
-│   ├── graph.py                 # LangGraph wiring + full flow diagram
-│   ├── state.py                 # GraphState — data shared between all nodes
-│   ├── prompts.py               # ALL LLM prompts (change AI behaviour here)
-│   ├── llm.py                   # Shared LLM client (Groq)
-│   └── nodes/                   # One file = one step in the pipeline
-│       ├── intent.py            # Step 1 — chitchat or RAG?
-│       ├── retrieve.py          # Step 2 — fetch chunks from vector DB
-│       ├── grade.py             # Step 3 — filter irrelevant chunks
-│       ├── rewrite.py           # Step 4 — improve question if retrieval failed
-│       ├── generate.py          # Step 5 — write answer from context
-│       └── check.py             # Step 6 — hallucination + usefulness check
+├── frontend/                    # React + TypeScript SPA (Vite, Tailwind)
+│   ├── openapi.json             # Snapshot of the backend OpenAPI spec
+│   ├── orval.config.ts          # API client codegen config
+│   └── src/
+│       ├── api/                 # axios mutator + generated typed client & hooks
+│       ├── pages/               # login, chat, documents, knowledge-base
+│       ├── components/          # Layout + reusable UI
+│       └── lib/                 # auth context, query client, types, helpers
 │
-├── services/                    # Application business logic
-│   ├── chat.py                  # Calls rag.pipeline.ask()
-│   ├── ingest.py                # File reading, chunking, embedding, storing
-│   └── auth.py                  # Insforge signup, login, token validation
-│
-├── providers/                   # Pluggable backends — swap via .env
-│   ├── embeddings.py            # ollama | google | openai
-│   └── vectorstore.py           # postgres | pinecone
-│
-├── api/                         # HTTP layer — routes call services, nothing else
-│   ├── main.py                  # FastAPI app factory + router registration
-│   ├── deps.py                  # Shared dependencies (require_user)
-│   └── routers/
-│       ├── auth.py              # POST /auth/signup  POST /auth/login  GET /auth/me
-│       ├── chat.py              # POST /chat
-│       ├── ingest.py            # POST /ingest/upload|store  GET /ingest/status|jobs
-│       └── documents.py         # GET /documents  DELETE /documents/{source}
-│
-├── ui/                          # Streamlit UI
-│   ├── main.py                  # Entry point — CSS, session state, tab routing
-│   ├── client.py                # All API calls in one place (auth headers auto-injected)
-│   └── pages/
-│       ├── auth_page.py         # Login / signup screen
-│       ├── chat_page.py         # Chat tab
-│       ├── upload_page.py       # Upload + ingestion progress tab
-│       └── kb_page.py           # Knowledge base document list tab
-│
-├── ingest_cli.py                # CLI ingestion (local folder or Google Drive)
-├── Dockerfile.api               # Docker image for the API
-├── Dockerfile.ui                # Docker image for the UI
-├── docker-compose.yml           # Production (API + UI)
+├── .github/workflows/           # CI + manual deploy to InsForge
+├── docker-compose.yml           # Ollama + API
 ├── docker-compose.dev.yml       # Local dev (Postgres + pgAdmin)
-├── pyproject.toml               # Dependencies (managed by uv)
+├── insforge.toml                # InsForge backend config
 └── Makefile                     # One-word commands
 ```
 
@@ -228,11 +212,11 @@ This starts Postgres + pgvector on port 5432 and pgAdmin (visual DB browser) on 
 ### 5 — Run
 
 ```bash
-# Terminal 1 — API backend
-make api       # http://localhost:8000/docs
+# Terminal 1 — API backend (agent-service)
+make api          # http://localhost:8000/docs
 
-# Terminal 2 — UI
-make chat      # http://localhost:8501
+# Terminal 2 — React frontend (first time: make web-install)
+make web          # http://localhost:5173
 ```
 
 ---
@@ -241,7 +225,7 @@ make chat      # http://localhost:8501
 
 ### Sign up & log in
 
-Open **http://localhost:8501** → click **Sign up** tab → create account → log in.
+Open **http://localhost:5173** → click **Sign up** tab → create account → log in.
 
 ### Upload documents
 
@@ -434,23 +418,27 @@ npx @insforge/cli compute deploy . \
 
 Copy the endpoint URL (e.g. `https://rag-assist-api-<id>.fly.dev`)
 
-### 5 — Deploy UI
+### 5 — Deploy the frontend (Vercel via InsForge)
 
 ```bash
-npx @insforge/cli secrets add API_URL "https://rag-assist-api-<id>.fly.dev"
-
-npx @insforge/cli compute deploy . \
-  --name rag-assist-ui \
-  --dockerfile Dockerfile.ui \
-  --port 8501 \
-  --memory 512
+cd frontend
+npm run build
+npx @insforge/cli deployments deploy . \
+  --env VITE_API_URL="https://rag-assist-api-<id>.fly.dev"
 ```
 
 ### 6 — Verify
 
 ```bash
-npx @insforge/cli compute list
+npx @insforge/cli compute list       # backend service
+npx @insforge/cli deployments list   # frontend
 ```
+
+> CI/CD: two pipelines, one per app. CI runs automatically on push/PR; deploys
+> are **manual** ("Run workflow"). See
+> [`agent-service.yml`](.github/workflows/agent-service.yml) (backend → Compute)
+> and [`frontend.yml`](.github/workflows/frontend.yml) (frontend → Vercel),
+> plus [`BRANCH_PROTECTION.md`](.github/BRANCH_PROTECTION.md).
 
 ---
 
@@ -477,9 +465,11 @@ npx @insforge/cli compute list
 ## Available commands
 
 ```bash
-make install                     # Install all dependencies (run once)
+make install                     # Install backend deps (agent-service)
 make api                         # Start FastAPI — http://localhost:8000/docs
-make chat                        # Start Streamlit UI — http://localhost:8501
+make web-install                 # Install frontend deps (run once)
+make web                         # Start React frontend — http://localhost:5173
+make gen                         # Regenerate the typed API client from OpenAPI
 make ingest SOURCE=./my-docs     # Ingest a local folder of documents
 make ingest-drive ID=<folder-id> # Ingest from a Google Drive folder
 ```

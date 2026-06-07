@@ -10,9 +10,9 @@ the guardrails a production team would enforce.
   - [x] Require approvals: **1** (or more)
   - [x] **Require review from Code Owners** (uses [`CODEOWNERS`](./CODEOWNERS))
   - [x] Dismiss stale approvals when new commits are pushed
-- [x] **Require status checks to pass before merging**
-  - Required check: **`Lint & build`** (the `ci` job in
-    [`workflows/ci-deploy.yml`](./workflows/ci-deploy.yml))
+- [x] **Require status checks to pass before merging** — both app CIs:
+  - **`Agent service build`** — [`workflows/agent-service.yml`](./workflows/agent-service.yml)
+  - **`Frontend build`** — [`workflows/frontend.yml`](./workflows/frontend.yml)
   - [x] Require branches to be up to date before merging
 - [x] **Require conversation resolution before merging**
 - [x] **Do not allow bypassing the above settings** (applies to admins too)
@@ -20,22 +20,36 @@ the guardrails a production team would enforce.
       changes land via PR
 - [x] **Block force pushes** and **deletions**
 
+## Two pipelines (one per app)
+
+| App | Workflow | CI job | Deploy target |
+|---|---|---|---|
+| Backend | `agent-service.yml` | `Agent service build` | InsForge Compute (Fly) — image rolled via `compute update` |
+| Frontend | `frontend.yml` | `Frontend build` | InsForge Deployments (Vercel) via `deployments deploy` |
+
+Each pipeline: **CI runs automatically** on push/PR; **deploy is manual**
+(`workflow_dispatch` → "Run workflow"), gated by the `production` environment.
+
 ## Protected deploy environment
 
-In **Settings → Environments → `production`**:
+In **Settings → Environments → `production`** (shared by both pipelines' deploy jobs):
 
-- [x] **Required reviewers** — at least one approver before the `deploy` job runs
 - [x] **Deployment branches** — restrict to `main` only
-- [x] Store deploy secrets (`INSFORGE_ACCESS_TOKEN`, etc.) **on the environment**,
-      not as plain repo secrets, so they're only exposed to approved deploys
+- [x] Store deploy secrets on the environment, not as plain repo secrets, so
+      they're only exposed to approved deploys:
+      `INSFORGE_EMAIL`, `INSFORGE_PASSWORD`, `INSFORGE_PROJECT_ID`,
+      `INSFORGE_ORG_ID`, `INSFORGE_API_SERVICE_ID`
+- [ ] **Required reviewers** — paid feature on private repos; on the free plan
+      the manual `workflow_dispatch` trigger is the approval gate instead.
 
 ## Workflow
 
 1. Branch off `main` → open a PR.
-2. CI (`Lint & build`) must pass; Code Owners must approve.
-3. Merge to `main` → the `deploy` job waits for `production` environment approval,
-   then rolls the InsForge compute service to the new SHA-pinned image and runs a
-   post-deploy health check.
+2. Both CIs (`Agent service build`, `Frontend build`) must pass; Code Owners must approve.
+3. Merge to `main`.
+4. To release: open **Actions → the app's workflow → Run workflow → main**.
+   - Agent Service: builds + pushes the image, rolls the compute service, health-checks.
+   - Frontend: builds + deploys to Vercel via InsForge.
 
 ## Private container images (optional hardening)
 
