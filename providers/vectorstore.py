@@ -5,9 +5,10 @@ Unified interface for vector storage — swap backends via VECTOR_STORE env var.
 
 Supported values:
   pinecone  → Pinecone serverless (default)
-  postgres  → PostgreSQL + pgvector (works with Insforge, Supabase, or any Postgres)
+  postgres  → PostgreSQL + pgvector via direct psycopg2 (local Docker / Supabase)
+  insforge  → Insforge PostgREST API (no direct DB connection needed — best for Insforge deploy)
 
-Both backends expose the same 4 methods:
+All backends expose the same 4 methods:
   upsert(chunks, embeddings, source)   → store chunks
   search(query_vector, top_k)          → return list of text strings
   list_sources()                       → return [{source, chunk_count, store}]
@@ -190,6 +191,102 @@ class PostgresStore:
             conn.commit()
 
 
+# ── Insforge PostgREST backend ────────────────────────────────────────────────
+
+class InsforgeStore:
+    """
+    Uses Insforge's REST database API — no direct Postgres connection needed.
+    Works from any Fly.io compute service deployed via Insforge.
+
+    For vector similarity search, uses a Postgres function `search_embeddings`
+    that we create once via the CLI.
+
+    Required env vars:
+      INSFORGE_OSS_HOST  → e.g. https://d3kmwe4w.ap-southeast.insforge.app
+      INSFORGE_API_KEY   → e.g. ik_5fb5dfd79044d61e07ac4cbb79d05a5f
+    """
+
+    def __init__(self):
+        import requests as req
+        self._req     = req
+        self.base_url = os.environ["INSFORGE_OSS_HOST"].rstrip("/")
+        self.api_key  = os.environ["INSFORGE_API_KEY"]
+        self.headers  = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type":  "application/json",
+        }
+        print(f"[vectorstore] Connected to Insforge API → {self.base_url}")
+
+    def _records_url(self):
+        return f"{self.base_url}/api/database/records/embeddings"
+
+    def _rpc_url(self, fn: str):
+        return f"{self.base_url}/api/database/rpc/{fn}"
+
+    def upsert(self, chunks: list[str], embeddings: list[list[float]], source: str):
+        """Upsert chunks in batches via the records API."""
+        records = [
+            {
+                "id":        _stable_id(source, i),
+                "source":    source,
+                "content":   chunk,
+                "embedding": str(emb),   # Postgres vector string format
+            }
+            for i, (chunk, emb) in enumerate(zip(chunks, embeddings))
+        ]
+        # Upsert in batches of 20
+        for start in range(0, len(records), 20):
+            batch = records[start:start + 20]
+            resp  = self._req.post(
+                self._records_url(),
+                headers={**self.headers, "Prefer": "resolution=merge-duplicates"},
+                json=batch,
+                timeout=60,
+            )
+            if not resp.ok:
+                raise RuntimeError(f"Upsert failed {resp.status_code}: {resp.text[:300]}")
+
+    def search(self, query_vector: list[float], top_k: int = 5) -> list[str]:
+        """Call the search_embeddings SQL function for vector similarity search."""
+        resp = self._req.post(
+            self._rpc_url("search_embeddings"),
+            headers=self.headers,
+            json={"query_vector": str(query_vector), "match_count": top_k},
+            timeout=30,
+        )
+        if not resp.ok:
+            raise RuntimeError(f"Search failed {resp.status_code}: {resp.text[:300]}")
+        return [r["content"] for r in resp.json()]
+
+    def list_sources(self) -> list[dict]:
+        resp = self._req.get(
+            self._records_url(),
+            headers=self.headers,
+            params={"select": "source", "limit": 10000},
+            timeout=15,
+        )
+        if not resp.ok:
+            return []
+        rows = resp.json()
+        counts: dict[str, int] = {}
+        for r in rows:
+            counts[r["source"]] = counts.get(r["source"], 0) + 1
+        return [
+            {"source": src, "chunks": cnt, "store": "insforge"}
+            for src, cnt in sorted(counts.items())
+        ]
+
+    def delete_source(self, source: str):
+        resp = self._req.delete(
+            self._records_url(),
+            headers=self.headers,
+            params={"source": f"eq.{source}"},
+            timeout=15,
+        )
+        if not resp.ok:
+            raise RuntimeError(f"Delete failed {resp.status_code}: {resp.text[:200]}")
+
+
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def get_vectorstore():
@@ -201,10 +298,12 @@ def get_vectorstore():
         _store = PineconeStore()
     elif VECTOR_STORE == "postgres":
         _store = PostgresStore()
+    elif VECTOR_STORE == "insforge":
+        _store = InsforgeStore()
     else:
         raise ValueError(
             f"Unknown VECTOR_STORE='{VECTOR_STORE}'. "
-            f"Supported: pinecone, postgres"
+            f"Supported: pinecone, postgres, insforge"
         )
 
     return _store
