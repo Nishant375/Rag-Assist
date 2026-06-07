@@ -434,9 +434,11 @@ npx @insforge/cli compute list       # backend service
 npx @insforge/cli deployments list   # frontend
 ```
 
-> CI/CD: pushes run automated checks; the **manual** "Run workflow" action in
-> GitHub Actions builds the API image and rolls the InsForge compute service.
-> See [`.github/workflows/ci-deploy.yml`](.github/workflows/ci-deploy.yml).
+> CI/CD: two pipelines, one per app. CI runs automatically on push/PR; deploys
+> are **manual** ("Run workflow"). See
+> [`agent-service.yml`](.github/workflows/agent-service.yml) (backend → Compute)
+> and [`frontend.yml`](.github/workflows/frontend.yml) (frontend → Vercel),
+> plus [`BRANCH_PROTECTION.md`](.github/BRANCH_PROTECTION.md).
 
 ---
 
