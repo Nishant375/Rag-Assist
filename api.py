@@ -1,12 +1,20 @@
 """
-api.py — FastAPI backend for the CRAG agent.
+api.py — FastAPI backend for the RAG Assistant.
 
-Endpoints:
-  POST /chat                    — send a message, get an answer
-  POST /ingest/upload           — upload files + start ingestion job
-  GET  /ingest/status/{job_id}  — poll job progress
-  GET  /ingest/jobs             — list all past jobs
-  GET  /health                  — liveness check
+Public routes  (no auth needed):
+  GET  /health
+  POST /auth/signup
+  POST /auth/login
+
+Protected routes (Bearer token required):
+  GET  /auth/me
+  POST /chat
+  POST /ingest/upload
+  POST /ingest/store/{upload_id}
+  GET  /ingest/status/{job_id}
+  GET  /ingest/jobs
+  GET  /documents
+  DELETE /documents/{source}
 """
 
 import os
@@ -28,8 +36,8 @@ from agent.graph import crag_graph
 from auth import signup_handler, login_handler, me_handler, verify_token, AuthRequest
 
 app = FastAPI(
-    title="DocuMind API",
-    description="Upload your documents and chat with them using AI — powered by Corrective RAG, Groq LLM, and pgvector",
+    title="Rag-Assist API",
+    description="Upload your documents and chat with them using AI — Corrective RAG + Groq + pgvector",
     version="1.0.0",
 )
 
@@ -87,7 +95,7 @@ async def run_ingestion(job_id: str, folder: str):
     try:
         embedder = get_embedder()
         store    = get_vectorstore()
-        job_log(job_id, f"Providers ready ✓")
+        job_log(job_id, "Providers ready ✓")
 
         files = list(Path(folder).iterdir())
         j["files_found"] = len(files)
@@ -107,7 +115,7 @@ async def run_ingestion(job_id: str, folder: str):
 
             chunks = splitter.split_text(text)
             if not chunks:
-                job_log(job_id, f"  ↳ no text found, skipped")
+                job_log(job_id, "  ↳ no text found, skipped")
                 j["files_done"] += 1
                 continue
 
@@ -143,7 +151,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    steps: list[str]
+    steps:  list[str]
     rewritten_question: str | None = None
 
 class IngestStarted(BaseModel):
@@ -152,32 +160,32 @@ class IngestStarted(BaseModel):
     message: str = "Ingestion started. Poll /ingest/status/{job_id} for progress."
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Public routes ─────────────────────────────────────────────────────────────
 
-@app.get("/health")
+@app.get("/health", tags=["Public"])
 def health():
     return {"status": "ok"}
 
 
-# ── Auth routes ───────────────────────────────────────────────────────────────
-
-@app.post("/auth/signup")
+@app.post("/auth/signup", tags=["Auth"])
 def signup(req: AuthRequest):
     return signup_handler(req)
 
 
-@app.post("/auth/login")
+@app.post("/auth/login", tags=["Auth"])
 def login(req: AuthRequest):
     return login_handler(req)
 
 
-@app.get("/auth/me")
-def me(user=Depends(verify_token)):
+# ── Protected routes (require Bearer token) ───────────────────────────────────
+
+@app.get("/auth/me", tags=["Auth"])
+def me(user: dict = Depends(verify_token)):
     return me_handler(user)
 
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+@app.post("/chat", response_model=ChatResponse, tags=["Chat"])
+def chat(req: ChatRequest, user: dict = Depends(verify_token)):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="message cannot be empty")
     try:
@@ -201,9 +209,11 @@ def chat(req: ChatRequest):
     )
 
 
-@app.post("/ingest/upload")
-async def ingest_upload(files: list[UploadFile] = File(...)):
-    """Step 1 — Save uploaded files. Does NOT start ingestion yet."""
+@app.post("/ingest/upload", tags=["Ingest"])
+async def ingest_upload(
+    files: list[UploadFile] = File(...),
+    user:  dict = Depends(verify_token),
+):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
@@ -220,16 +230,19 @@ async def ingest_upload(files: list[UploadFile] = File(...)):
     return {
         "upload_id": upload_id,
         "files":     filenames,
-        "message":   f"{len(filenames)} file(s) uploaded. Call POST /ingest/store/{upload_id} to start ingestion.",
+        "message":   f"{len(filenames)} file(s) uploaded.",
     }
 
 
-@app.post("/ingest/store/{upload_id}", response_model=IngestStarted)
-def ingest_store(upload_id: str, background_tasks: BackgroundTasks):
-    """Step 2 — Trigger embedding + Pinecone storage for a previous upload."""
+@app.post("/ingest/store/{upload_id}", response_model=IngestStarted, tags=["Ingest"])
+def ingest_store(
+    upload_id:        str,
+    background_tasks: BackgroundTasks,
+    user:             dict = Depends(verify_token),
+):
     folder = UPLOAD_DIR / upload_id
     if not folder.exists():
-        raise HTTPException(status_code=404, detail=f"Upload '{upload_id}' not found. Upload files first.")
+        raise HTTPException(status_code=404, detail="Upload not found. Upload files first.")
 
     filenames = [f.name for f in folder.iterdir()]
     if not filenames:
@@ -237,25 +250,23 @@ def ingest_store(upload_id: str, background_tasks: BackgroundTasks):
 
     job_id = new_job(str(folder), filenames)
     background_tasks.add_task(run_ingestion, job_id, str(folder))
-
     return IngestStarted(job_id=job_id, files=filenames)
 
 
-@app.get("/ingest/status/{job_id}")
-def ingest_status(job_id: str):
+@app.get("/ingest/status/{job_id}", tags=["Ingest"])
+def ingest_status(job_id: str, user: dict = Depends(verify_token)):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     return jobs[job_id]
 
 
-@app.get("/ingest/jobs")
-def list_jobs():
+@app.get("/ingest/jobs", tags=["Ingest"])
+def list_jobs(user: dict = Depends(verify_token)):
     return sorted(jobs.values(), key=lambda j: j["started_at"], reverse=True)
 
 
-@app.get("/documents")
-def list_documents():
-    """List all unique source files stored in the vector DB with chunk counts."""
+@app.get("/documents", tags=["Documents"])
+def list_documents(user: dict = Depends(verify_token)):
     from providers.vectorstore import get_vectorstore
     try:
         return get_vectorstore().list_sources()
@@ -263,9 +274,8 @@ def list_documents():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.delete("/documents/{source}")
-def delete_document(source: str):
-    """Delete all chunks for a given source file from the vector DB."""
+@app.delete("/documents/{source}", tags=["Documents"])
+def delete_document(source: str, user: dict = Depends(verify_token)):
     from providers.vectorstore import get_vectorstore
     try:
         get_vectorstore().delete_source(source)

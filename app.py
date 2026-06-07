@@ -160,6 +160,11 @@ div[data-testid="stButton"] > button {
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 
+def _headers() -> dict:
+    token = st.session_state.get("token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 def api_online() -> bool:
     try:
         return requests.get(f"{API_URL}/health", timeout=2).ok
@@ -167,27 +172,44 @@ def api_online() -> bool:
         return False
 
 
+def auth_login(email: str, password: str) -> dict:
+    resp = requests.post(f"{API_URL}/auth/login",
+                         json={"email": email, "password": password}, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def auth_signup(email: str, password: str) -> dict:
+    resp = requests.post(f"{API_URL}/auth/signup",
+                         json={"email": email, "password": password}, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def upload_files(uploaded_files) -> dict:
     files = [("files", (f.name, f.getvalue(), f.type or "application/octet-stream"))
              for f in uploaded_files]
-    resp = requests.post(f"{API_URL}/ingest/upload", files=files, timeout=30)
+    resp = requests.post(f"{API_URL}/ingest/upload", files=files,
+                         headers=_headers(), timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
 def trigger_store(upload_id: str) -> dict:
-    resp = requests.post(f"{API_URL}/ingest/store/{upload_id}", timeout=10)
+    resp = requests.post(f"{API_URL}/ingest/store/{upload_id}",
+                         headers=_headers(), timeout=10)
     resp.raise_for_status()
     return resp.json()
 
 
 def get_job(job_id: str) -> dict:
-    return requests.get(f"{API_URL}/ingest/status/{job_id}", timeout=5).json()
+    return requests.get(f"{API_URL}/ingest/status/{job_id}",
+                        headers=_headers(), timeout=5).json()
 
 
 def list_documents() -> list[dict]:
     try:
-        resp = requests.get(f"{API_URL}/documents", timeout=10)
+        resp = requests.get(f"{API_URL}/documents", headers=_headers(), timeout=10)
         resp.raise_for_status()
         return resp.json()
     except Exception:
@@ -196,36 +218,27 @@ def list_documents() -> list[dict]:
 
 def delete_document(source: str) -> bool:
     try:
-        resp = requests.delete(f"{API_URL}/documents/{source}", timeout=10)
+        resp = requests.delete(f"{API_URL}/documents/{source}",
+                               headers=_headers(), timeout=10)
         return resp.ok
     except Exception:
         return False
 
 
 def chat_query(message: str) -> dict:
-    try:
-        resp = requests.post(f"{API_URL}/chat", json={"message": message}, timeout=120)
-        resp.raise_for_status()
-        data = resp.json(); data["_mode"] = "api"; return data
-    except Exception:
-        from agent.graph import crag_graph
-        result = crag_graph.invoke({
-            "question": message, "original_question": message,
-            "documents": [], "generation": "",
-            "generation_attempts": 0, "retrieval_attempts": 0, "steps": [],
-        })
-        fq = result.get("question", "")
-        return {
-            "answer": result.get("generation") or "No relevant answer found.",
-            "steps": result.get("steps", []),
-            "rewritten_question": fq if fq != message else None,
-            "_mode": "direct",
-        }
+    resp = requests.post(f"{API_URL}/chat", json={"message": message},
+                         headers=_headers(), timeout=120)
+    resp.raise_for_status()
+    data = resp.json()
+    data["_mode"] = "api"
+    return data
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
 
 for k, v in {
+    "token":        None,    # JWT access token
+    "user_email":   None,    # logged-in user email
     "messages":     [],
     "upload_id":    None,
     "staged_files": [],
@@ -233,6 +246,88 @@ for k, v in {
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOGIN / SIGNUP SCREEN — shown when not authenticated
+# ══════════════════════════════════════════════════════════════════════════════
+
+if not st.session_state.token:
+    st.markdown("""
+    <style>
+    .auth-card {
+        max-width: 420px; margin: 80px auto 0 auto;
+        background: #0f1117; border: 1px solid #1e2130;
+        border-radius: 16px; padding: 40px 36px;
+    }
+    .auth-logo {
+        display:flex; align-items:center; gap:10px;
+        justify-content:center; margin-bottom:28px;
+    }
+    .auth-icon {
+        width:40px; height:40px;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6);
+        border-radius:11px; display:flex; align-items:center;
+        justify-content:center; font-size:20px;
+    }
+    .auth-title { font-size:20px; font-weight:700; color:#f1f5f9; }
+    .auth-sub   { text-align:center; color:#475569; font-size:13px; margin-bottom:24px; }
+    </style>
+    <div class="auth-card">
+        <div class="auth-logo">
+            <div class="auth-icon">⚡</div>
+            <div class="auth-title">Rag-Assist</div>
+        </div>
+        <div class="auth-sub">Chat with your documents using AI</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Centre the form
+    _, col, _ = st.columns([1, 2, 1])
+    with col:
+        tab_login, tab_signup = st.tabs(["Login", "Sign up"])
+
+        with tab_login:
+            email    = st.text_input("Email", key="login_email",
+                                     placeholder="you@example.com")
+            password = st.text_input("Password", type="password",
+                                     key="login_password")
+            if st.button("Login", use_container_width=True, type="primary"):
+                if not email or not password:
+                    st.error("Enter email and password.")
+                elif not api_online():
+                    st.error("API offline — run `make api`")
+                else:
+                    with st.spinner("Logging in …"):
+                        try:
+                            data = auth_login(email, password)
+                            st.session_state.token      = data["access_token"]
+                            st.session_state.user_email = data["user"]["email"]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Login failed: {e}")
+
+        with tab_signup:
+            s_email    = st.text_input("Email", key="signup_email",
+                                       placeholder="you@example.com")
+            s_password = st.text_input("Password (min 6 chars)", type="password",
+                                       key="signup_password")
+            if st.button("Create account", use_container_width=True, type="primary"):
+                if not s_email or not s_password:
+                    st.error("Enter email and password.")
+                elif len(s_password) < 6:
+                    st.error("Password must be at least 6 characters.")
+                elif not api_online():
+                    st.error("API offline — run `make api`")
+                else:
+                    with st.spinner("Creating account …"):
+                        try:
+                            auth_signup(s_email, s_password)
+                            st.success("Account created! Check your email to verify, then log in.")
+                        except Exception as e:
+                            st.error(f"Signup failed: {e}")
+
+    st.stop()   # nothing below renders until logged in
 
 
 # ── Top nav ───────────────────────────────────────────────────────────────────
@@ -247,12 +342,26 @@ st.markdown(f"""
             <div class="topnav-sub">Chat with your documents using AI</div>
         </div>
     </div>
-    <span class="api-pill {'api-on' if online else 'api-off'}">
-        <span class="dot {'dot-on' if online else 'dot-off'}"></span>
-        {'API connected' if online else 'API offline — run: make api'}
-    </span>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span class="api-pill {'api-on' if online else 'api-off'}">
+            <span class="dot {'dot-on' if online else 'dot-off'}"></span>
+            {'API connected' if online else 'API offline'}
+        </span>
+        <span style="font-size:12px;color:#475569;">
+            👤 {st.session_state.user_email}
+        </span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Logout button (top-right, outside the nav HTML)
+_, logout_col = st.columns([9, 1])
+with logout_col:
+    if st.button("Logout", use_container_width=True):
+        st.session_state.token      = None
+        st.session_state.user_email = None
+        st.session_state.messages   = []
+        st.rerun()
 
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
