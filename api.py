@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent.graph import crag_graph
+from auth import signup_handler, login_handler, me_handler, verify_token, AuthRequest
 
 app = FastAPI(
     title="DocuMind API",
@@ -156,6 +157,23 @@ class IngestStarted(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── Auth routes ───────────────────────────────────────────────────────────────
+
+@app.post("/auth/signup")
+def signup(req: AuthRequest):
+    return signup_handler(req)
+
+
+@app.post("/auth/login")
+def login(req: AuthRequest):
+    return login_handler(req)
+
+
+@app.get("/auth/me")
+def me(user=Depends(verify_token)):
+    return me_handler(user)
 
 
 @app.post("/chat", response_model=ChatResponse)
