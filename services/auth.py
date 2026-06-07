@@ -1,8 +1,10 @@
 """
 services/auth.py
 
-All Insforge authentication logic.
-No FastAPI/Streamlit imports — pure Python, fully testable.
+Insforge authentication using the correct REST API endpoints:
+  POST /api/auth/users    — register
+  POST /api/auth/sessions — login
+  GET  /api/auth/me       — get current user from token
 """
 
 import requests
@@ -21,22 +23,23 @@ def _headers() -> dict:
 
 
 def signup(email: str, password: str) -> dict:
-    """Create a new user account. Returns a message dict."""
+    """Create a new user account."""
     resp = requests.post(
-        f"{settings.insforge_oss_host}/auth/signup",
+        f"{settings.insforge_oss_host}/api/auth/users?client_type=server",
         headers=_headers(),
         json={"email": email, "password": password},
         timeout=10,
     )
     if not resp.ok:
-        raise AuthError(resp.json().get("message", "Signup failed"))
-    return {"message": "Account created. Check your email to verify."}
+        body = resp.json() if resp.content else {}
+        raise AuthError(body.get("message", f"Signup failed ({resp.status_code})"))
+    return {"message": "Account created. Check your email to verify, then log in."}
 
 
 def login(email: str, password: str) -> dict:
     """Sign in and return access token + user info."""
     resp = requests.post(
-        f"{settings.insforge_oss_host}/auth/signin",
+        f"{settings.insforge_oss_host}/api/auth/sessions?client_type=server",
         headers=_headers(),
         json={"email": email, "password": password},
         timeout=10,
@@ -56,9 +59,9 @@ def login(email: str, password: str) -> dict:
 
 
 def get_user(token: str) -> dict:
-    """Validate a JWT token and return the user. Raises AuthError if invalid."""
+    """Validate a JWT and return the user. Raises AuthError if invalid."""
     resp = requests.get(
-        f"{settings.insforge_oss_host}/auth/user",
+        f"{settings.insforge_oss_host}/api/auth/me",
         headers={"Authorization": f"Bearer {token}"},
         timeout=5,
     )
