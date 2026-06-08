@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("email");
+    localStorage.removeItem("ingest:jobId");
     sessionStorage.removeItem("chat:messages");
     setToken(null);
     setEmail(null);

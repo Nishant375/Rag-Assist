@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
 import { ChatProvider } from "@/lib/chat";
+import { IngestProvider } from "@/lib/ingest";
 import App from "@/App";
 import "./index.css";
 
@@ -13,9 +14,11 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ChatProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <IngestProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </IngestProvider>
         </ChatProvider>
       </AuthProvider>
     </QueryClientProvider>
