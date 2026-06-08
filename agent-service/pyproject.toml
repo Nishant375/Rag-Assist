@@ -19,11 +19,13 @@ dependencies = [
     # Document readers
     "pypdf>=4.0.0",
     "python-docx>=1.1.0",
+    # OCR fallback for scanned / image-only PDFs (needs tesseract + poppler at runtime)
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.17.0",
     # API
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
-    # UI
-    "streamlit>=1.35.0",
+    "python-multipart>=0.0.9",
     # Config
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",

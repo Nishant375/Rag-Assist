@@ -32,7 +32,27 @@ def read_txt(path: Path) -> str:
 
 def read_pdf(path: Path) -> str:
     import pypdf
-    return "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(str(path)).pages)
+
+    text = "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(str(path)).pages)
+    if text.strip():
+        return text
+    # No text layer (scanned / image-only PDF) → fall back to OCR.
+    return _ocr_pdf(path)
+
+
+def _ocr_pdf(path: Path) -> str:
+    """OCR a scanned PDF. Returns '' if OCR tooling isn't available."""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_path
+    except ImportError:
+        return ""
+    try:
+        pages = convert_from_path(str(path), dpi=200)
+        return "\n".join(pytesseract.image_to_string(img) for img in pages)
+    except Exception:
+        # Missing system binaries (tesseract/poppler) or unreadable scan.
+        return ""
 
 
 def read_docx(path: Path) -> str:
@@ -174,13 +194,15 @@ async def ingest_folder_async(
             try:
                 text = read_file(path)
             except ValueError:
-                log(f"  ↳ skipped (unsupported type)")
+                log("  ↳ skipped (unsupported file type)")
+                job.setdefault("skipped", []).append({"file": fname, "reason": "unsupported file type"})
                 job["files_done"] += 1
                 continue
 
             chunks = splitter.split_text(text)
             if not chunks:
-                log("  ↳ no text found, skipped")
+                log("  ↳ no readable text found, skipped (scanned PDF without OCR?)")
+                job.setdefault("skipped", []).append({"file": fname, "reason": "no readable text found"})
                 job["files_done"] += 1
                 continue
 
@@ -190,8 +212,9 @@ async def ingest_folder_async(
             )
 
             store.upsert(chunks, embeddings, source=fname)
-            job["chunks_total"] += len(chunks)
-            job["files_done"]   += 1
+            job["chunks_total"]  += len(chunks)
+            job["files_stored"]   = job.get("files_stored", 0) + 1
+            job["files_done"]    += 1
             log(f"  ↳ stored {len(chunks)} chunks ✓")
 
         job["current_file"] = None

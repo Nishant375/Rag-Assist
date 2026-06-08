@@ -38,8 +38,10 @@ def _new_job(folder: str, filenames: list[str]) -> str:
         "finished_at":  None,
         "files_found":  len(filenames),
         "files_done":   0,
+        "files_stored": 0,
         "chunks_total": 0,
         "current_file": None,
+        "skipped":      [],
         "log":          [],
         "error":        None,
     }
