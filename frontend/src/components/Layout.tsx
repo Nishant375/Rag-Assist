@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
+import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/Button";
 import { useHealthHealthGet } from "@/api/generated/public/public";
 
@@ -10,7 +10,8 @@ const TABS = [
 ];
 
 export function Layout() {
-  const { email, signOut } = useAuth();
+  const email = useAuthStore((s) => s.email);
+  const signOut = useAuthStore((s) => s.signOut);
   const health = useHealthHealthGet({
     query: { refetchInterval: 30_000, retry: false },
   });

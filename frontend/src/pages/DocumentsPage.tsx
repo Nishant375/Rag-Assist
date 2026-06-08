@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, type ChangeEvent, type DragEvent } from "react";
-import { useIngest } from "@/lib/ingest";
+import { useQueryClient } from "@tanstack/react-query";
+import { useIngestStore } from "@/stores/ingest";
+import { useStatusIngestStatusJobIdGet } from "@/api/generated/ingest/ingest";
+import { getListDocumentsDocumentsGetQueryKey } from "@/api/generated/documents/documents";
+import type { JobStatus } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 
 const ACCEPT = /\.(pdf|docx|pptx|txt|md)$/i;
@@ -11,10 +15,41 @@ function fmtSize(bytes: number): string {
 }
 
 export function DocumentsPage() {
-  const { staged, addFiles, removeFile, job, busy, running, errorMsg, startIngest, dismiss } = useIngest();
+  // Client state (persisted across tabs/refresh) from Zustand.
+  const staged = useIngestStore((s) => s.staged);
+  const jobId = useIngestStore((s) => s.jobId);
+  const uploading = useIngestStore((s) => s.uploading);
+  const error = useIngestStore((s) => s.error);
+  const addFiles = useIngestStore((s) => s.addFiles);
+  const removeFile = useIngestStore((s) => s.removeFile);
+  const startIngest = useIngestStore((s) => s.startIngest);
+  const dismiss = useIngestStore((s) => s.dismiss);
+
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLPreElement>(null);
+  const qc = useQueryClient();
+
+  // Server state: poll the job status (resumes on tab return / refresh via jobId).
+  const statusQuery = useStatusIngestStatusJobIdGet(jobId ?? "", {
+    query: {
+      enabled: !!jobId,
+      refetchInterval: (q) => ((q.state.data as JobStatus | undefined)?.finished_at ? false : 1000),
+    },
+  });
+  const job = statusQuery.data as JobStatus | undefined;
+  const running = !!jobId && !job?.finished_at;
+  const busy = uploading || running;
+  const errorMsg = error;
+
+  // Refresh the KB list once ingestion finishes.
+  const refreshedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (job?.finished_at && refreshedRef.current !== jobId) {
+      refreshedRef.current = jobId;
+      void qc.invalidateQueries({ queryKey: getListDocumentsDocumentsGetQueryKey() });
+    }
+  }, [job?.finished_at, jobId, qc]);
 
   // Keep the live log scrolled to the latest line.
   useEffect(() => {

@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
-import { useChat } from "@/lib/chat";
+import { useChatStore } from "@/stores/chat";
 
 const SUGGESTIONS = ["Hi!", "What can you help me with?", "Summarize my documents", "What topics are covered?"];
 
 export function ChatPage() {
-  const { messages, isPending, send, clear } = useChat();
+  const messages = useChatStore((s) => s.messages);
+  const isPending = useChatStore((s) => s.sending);
+  const send = useChatStore((s) => s.send);
+  const clear = useChatStore((s) => s.clear);
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 

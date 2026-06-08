@@ -6,9 +6,20 @@ const baseURL = import.meta.env.VITE_API_URL || "/api";
 
 export const axiosInstance = axios.create({ baseURL });
 
+// Read the token from the persisted Zustand auth store ({ state: { token } }).
+// Reading storage directly avoids a circular import with the store module.
+function getToken(): string | null {
+  try {
+    const raw = localStorage.getItem("auth");
+    return raw ? (JSON.parse(raw)?.state?.token ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Attach the bearer token (if any) to every request.
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (token) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -21,8 +32,9 @@ axiosInstance.interceptors.response.use(
   (res) => res,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("email");
+      // Clear the persisted Zustand auth store and bounce to login.
+      // (Direct storage write avoids a circular import with the store.)
+      localStorage.removeItem("auth");
       if (!location.pathname.startsWith("/login")) {
         location.assign("/login");
       }

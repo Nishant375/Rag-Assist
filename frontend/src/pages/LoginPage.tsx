@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
+import { useAuthStore } from "@/stores/auth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import {
@@ -12,7 +12,7 @@ import type { LoginResponse } from "@/lib/types";
 type Mode = "login" | "signup";
 
 export function LoginPage() {
-  const { signIn } = useAuth();
+  const signIn = useAuthStore((s) => s.signIn);
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
