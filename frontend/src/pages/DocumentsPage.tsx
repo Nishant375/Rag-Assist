@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent, type DragEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent, type DragEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUploadIngestUploadPost,
@@ -11,7 +11,7 @@ import type { JobStatus } from "@/lib/types";
 import { getErrorMessage } from "@/lib/error";
 import { Button } from "@/components/ui/Button";
 
-const ACCEPT = /\.(pdf|docx|txt|md)$/i;
+const ACCEPT = /\.(pdf|docx|pptx|txt|md)$/i;
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,6 +43,16 @@ export function DocumentsPage() {
   const rawErr = upload.error ?? store.error;
   const errorMsg = rawErr ? getErrorMessage(rawErr, "Upload failed") : "";
 
+  // Refresh the KB list only once ingestion actually FINISHES (not when it starts),
+  // so newly-stored documents show up without a manual refresh.
+  const refreshedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (job?.finished_at && refreshedRef.current !== jobId) {
+      refreshedRef.current = jobId;
+      void qc.invalidateQueries({ queryKey: getListDocumentsDocumentsGetQueryKey() });
+    }
+  }, [job?.finished_at, jobId, qc]);
+
   function addFiles(list: FileList | null) {
     if (!list) return;
     const accepted = Array.from(list).filter((f) => ACCEPT.test(f.name));
@@ -64,11 +74,8 @@ export function DocumentsPage() {
     const up = (await upload.mutateAsync({ data: body })) as { upload_id: string };
     const started = (await store.mutateAsync({ uploadId: up.upload_id })) as IngestStarted;
     setStaged([]);
+    refreshedRef.current = null;
     setJobId(started.job_id);
-    if (started.job_id) {
-      // Refresh the KB list once ingestion finishes.
-      void qc.invalidateQueries({ queryKey: getListDocumentsDocumentsGetQueryKey() });
-    }
   }
 
   const pct = job?.files_found ? Math.round((job.files_done / job.files_found) * 100) : 0;
@@ -77,7 +84,8 @@ export function DocumentsPage() {
     <div className="min-h-0 flex-1 overflow-y-auto py-5">
       <h3 className="mb-1 text-[15px] font-semibold text-gray-50">Upload documents</h3>
       <p className="mb-4 text-[13px] text-muted">
-        PDF, DOCX, TXT, or MD. They'll be embedded and added to your knowledge base.
+        PDF, DOCX, PPTX, TXT, or MD. They'll be embedded and added to your knowledge base.
+        Scanned PDFs and images inside documents are read via OCR.
       </p>
 
       <div
@@ -91,12 +99,12 @@ export function DocumentsPage() {
       >
         <div className="mb-2.5 text-4xl">📂</div>
         <div className="text-base font-semibold text-gray-50">Drag &amp; drop or click to browse</div>
-        <div className="mt-1 text-xs text-faint">PDF · DOCX · TXT · MD</div>
+        <div className="mt-1 text-xs text-faint">PDF · DOCX · PPTX · TXT · MD</div>
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept=".pdf,.docx,.txt,.md"
+          accept=".pdf,.docx,.pptx,.txt,.md"
           className="hidden"
           onChange={(e: ChangeEvent<HTMLInputElement>) => addFiles(e.target.files)}
         />
@@ -136,9 +144,32 @@ export function DocumentsPage() {
             <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${pct}%` }} />
           </div>
           <p className="mt-2 text-[13px] text-muted">
-            {job.status} · {job.files_done}/{job.files_found} files · {job.chunks_total} chunks
+            {job.status} · stored {job.files_stored ?? 0}/{job.files_found} files · {job.chunks_total} chunks
             {job.current_file ? ` · ${job.current_file}` : ""}
           </p>
+
+          {/* Done, but stored nothing → make the silent skip loud. */}
+          {job.finished_at && (job.files_stored ?? 0) === 0 && !job.error && (
+            <div className="mt-2 rounded-lg border border-amber-900 bg-amber-950/50 px-3.5 py-2.5 text-[13px] text-amber-300">
+              ⚠️ No documents were added — no readable text could be extracted. If this is a
+              scanned/image PDF, OCR may have failed or the page is blank.
+            </div>
+          )}
+
+          {/* Per-file skips. */}
+          {job.skipped?.length > 0 && (
+            <div className="mt-2 rounded-lg border border-amber-900 bg-amber-950/40 px-3.5 py-2.5 text-[13px] text-amber-300">
+              <div className="mb-1 font-medium">Skipped {job.skipped.length} file(s):</div>
+              <ul className="list-inside list-disc">
+                {job.skipped.map((s) => (
+                  <li key={s.file}>
+                    {s.file} — {s.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {job.error && (
             <div className="mt-2 rounded-lg border border-red-900 bg-red-950/60 px-3.5 py-2.5 text-[13px] text-red-300">
               {job.error}

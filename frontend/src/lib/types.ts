@@ -12,13 +12,20 @@ export interface KnowledgeBaseDoc {
   store: string;
 }
 
+export interface SkippedFile {
+  file: string;
+  reason: string;
+}
+
 export interface JobStatus {
   id: string;
   status: string;
   files_found: number;
   files_done: number;
+  files_stored: number;
   chunks_total: number;
   current_file: string | null;
+  skipped: SkippedFile[];
   log: string[];
   error: string | null;
   finished_at: string | null;

@@ -32,23 +32,138 @@ def read_txt(path: Path) -> str:
 
 def read_pdf(path: Path) -> str:
     import pypdf
-    return "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(str(path)).pages)
+
+    text = "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(str(path)).pages)
+    if text.strip():
+        return text
+    # No text layer (scanned / image-only PDF) → fall back to OCR.
+    return _ocr_pdf(path)
+
+
+def _ocr_pdf(path: Path) -> str:
+    """OCR a scanned PDF. Returns '' if OCR tooling isn't available."""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_path
+    except ImportError:
+        return ""
+    try:
+        pages = convert_from_path(str(path), dpi=200)
+        return "\n".join(pytesseract.image_to_string(img) for img in pages)
+    except Exception:
+        # Missing system binaries (tesseract/poppler) or unreadable scan.
+        return ""
+
+
+def _ocr_embedded_images(path: Path, media_prefix: str) -> str:
+    """
+    OCR images embedded inside an Office Open XML file (docx/pptx are zips).
+    Returns '' if OCR tooling isn't available or there are no images.
+    """
+    import io
+    import zipfile
+
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return ""
+
+    exts = (".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif")
+    out: list[str] = []
+    try:
+        with zipfile.ZipFile(path) as z:
+            for name in z.namelist():
+                if not name.startswith(media_prefix) or not name.lower().endswith(exts):
+                    continue
+                try:
+                    text = pytesseract.image_to_string(Image.open(io.BytesIO(z.read(name))))
+                    if text.strip():
+                        out.append(text)
+                except Exception:
+                    continue
+    except Exception:
+        return ""
+    return "\n".join(out)
 
 
 def read_docx(path: Path) -> str:
     from docx import Document
-    return "\n".join(p.text for p in Document(str(path)).paragraphs)
+
+    doc = Document(str(path))
+    parts: list[str] = [p.text for p in doc.paragraphs if p.text.strip()]
+
+    # Table cell text (commonly the bulk of real-world docx content).
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [c.text.strip() for c in row.cells]
+            if any(cells):
+                parts.append(" | ".join(cells))
+
+    # Headers / footers.
+    for section in doc.sections:
+        for container in (section.header, section.footer):
+            for p in container.paragraphs:
+                if p.text.strip():
+                    parts.append(p.text)
+
+    text = "\n".join(parts)
+    # OCR any embedded images (scans pasted into the doc).
+    ocr = _ocr_embedded_images(path, "word/media/")
+    return f"{text}\n{ocr}".strip() if ocr else text
+
+
+def read_pptx(path: Path) -> str:
+    from pptx import Presentation
+
+    prs = Presentation(str(path))
+    parts: list[str] = []
+
+    def walk(shapes):
+        for shape in shapes:
+            if shape.shape_type == 6 and hasattr(shape, "shapes"):  # grouped shapes
+                walk(shape.shapes)
+                continue
+            if shape.has_text_frame and shape.text_frame.text.strip():
+                parts.append(shape.text_frame.text)
+            if shape.has_table:
+                for row in shape.table.rows:
+                    cells = [c.text.strip() for c in row.cells]
+                    if any(cells):
+                        parts.append(" | ".join(cells))
+
+    for slide in prs.slides:
+        walk(slide.shapes)
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+            notes = slide.notes_slide.notes_text_frame.text
+            if notes.strip():
+                parts.append(notes)
+
+    text = "\n".join(parts)
+    ocr = _ocr_embedded_images(path, "ppt/media/")
+    return f"{text}\n{ocr}".strip() if ocr else text
+
+
+# Legacy binary formats python-docx / python-pptx can't read — reject clearly.
+_LEGACY = {".doc": "Word (.doc)", ".ppt": "PowerPoint (.ppt)"}
 
 
 def read_file(path: Path) -> str:
     """Read any supported file type."""
+    suffix = path.suffix.lower()
+    if suffix in _LEGACY:
+        modern = ".docx" if suffix == ".doc" else ".pptx"
+        raise ValueError(
+            f"Legacy {_LEGACY[suffix]} format not supported — save as {modern} and re-upload."
+        )
     readers = {
         ".txt":  read_txt,
         ".md":   read_txt,
         ".pdf":  read_pdf,
         ".docx": read_docx,
+        ".pptx": read_pptx,
     }
-    reader = readers.get(path.suffix.lower())
+    reader = readers.get(suffix)
     if reader is None:
         raise ValueError(f"Unsupported file type: {path.suffix}")
     return reader(path)
@@ -57,7 +172,7 @@ def read_file(path: Path) -> str:
 def read_folder(folder: str) -> Generator[tuple[str, str], None, None]:
     """Yield (filename, text) for every supported file in a folder."""
     for path in sorted(Path(folder).rglob("*")):
-        if path.suffix.lower() not in {".txt", ".md", ".pdf", ".docx"}:
+        if path.suffix.lower() not in {".txt", ".md", ".pdf", ".docx", ".pptx"}:
             continue
         text = read_file(path)
         if text and text.strip():
@@ -173,14 +288,17 @@ async def ingest_folder_async(
 
             try:
                 text = read_file(path)
-            except ValueError:
-                log(f"  ↳ skipped (unsupported type)")
+            except ValueError as exc:
+                reason = str(exc) or "unsupported file type"
+                log(f"  ↳ skipped ({reason})")
+                job.setdefault("skipped", []).append({"file": fname, "reason": reason})
                 job["files_done"] += 1
                 continue
 
             chunks = splitter.split_text(text)
             if not chunks:
-                log("  ↳ no text found, skipped")
+                log("  ↳ no readable text found, skipped (scanned PDF without OCR?)")
+                job.setdefault("skipped", []).append({"file": fname, "reason": "no readable text found"})
                 job["files_done"] += 1
                 continue
 
@@ -190,8 +308,9 @@ async def ingest_folder_async(
             )
 
             store.upsert(chunks, embeddings, source=fname)
-            job["chunks_total"] += len(chunks)
-            job["files_done"]   += 1
+            job["chunks_total"]  += len(chunks)
+            job["files_stored"]   = job.get("files_stored", 0) + 1
+            job["files_done"]    += 1
             log(f"  ↳ stored {len(chunks)} chunks ✓")
 
         job["current_file"] = None
