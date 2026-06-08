@@ -15,7 +15,7 @@ COPY ingest_cli.py .
 RUN uv pip install --system --no-cache \
     langgraph langchain langchain-groq langchain-community langchain-text-splitters \
     langchain-ollama langchain-google-genai pinecone psycopg2-binary \
-    pypdf python-docx pytesseract pdf2image fastapi uvicorn python-multipart pydantic-settings python-dotenv requests
+    pypdf python-docx python-pptx pytesseract pdf2image pillow fastapi uvicorn python-multipart pydantic-settings python-dotenv requests
 RUN mkdir -p uploads
 # Verify the app starts cleanly at build time
 RUN python -c "from api.main import app; print('startup OK')"

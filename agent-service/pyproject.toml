@@ -19,9 +19,12 @@ dependencies = [
     # Document readers
     "pypdf>=4.0.0",
     "python-docx>=1.1.0",
-    # OCR fallback for scanned / image-only PDFs (needs tesseract + poppler at runtime)
+    "python-pptx>=1.0.0",
+    # OCR for scanned PDFs and images embedded in docx/pptx
+    # (needs tesseract + poppler at runtime)
     "pytesseract>=0.3.10",
     "pdf2image>=1.17.0",
+    "pillow>=10.0.0",
     # API
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",

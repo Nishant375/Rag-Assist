@@ -11,7 +11,7 @@ import type { JobStatus } from "@/lib/types";
 import { getErrorMessage } from "@/lib/error";
 import { Button } from "@/components/ui/Button";
 
-const ACCEPT = /\.(pdf|docx|txt|md)$/i;
+const ACCEPT = /\.(pdf|docx|pptx|txt|md)$/i;
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -84,7 +84,8 @@ export function DocumentsPage() {
     <div className="min-h-0 flex-1 overflow-y-auto py-5">
       <h3 className="mb-1 text-[15px] font-semibold text-gray-50">Upload documents</h3>
       <p className="mb-4 text-[13px] text-muted">
-        PDF, DOCX, TXT, or MD. They'll be embedded and added to your knowledge base.
+        PDF, DOCX, PPTX, TXT, or MD. They'll be embedded and added to your knowledge base.
+        Scanned PDFs and images inside documents are read via OCR.
       </p>
 
       <div
@@ -98,12 +99,12 @@ export function DocumentsPage() {
       >
         <div className="mb-2.5 text-4xl">📂</div>
         <div className="text-base font-semibold text-gray-50">Drag &amp; drop or click to browse</div>
-        <div className="mt-1 text-xs text-faint">PDF · DOCX · TXT · MD</div>
+        <div className="mt-1 text-xs text-faint">PDF · DOCX · PPTX · TXT · MD</div>
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept=".pdf,.docx,.txt,.md"
+          accept=".pdf,.docx,.pptx,.txt,.md"
           className="hidden"
           onChange={(e: ChangeEvent<HTMLInputElement>) => addFiles(e.target.files)}
         />
