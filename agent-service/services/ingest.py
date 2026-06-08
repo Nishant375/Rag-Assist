@@ -7,8 +7,10 @@ No FastAPI/Streamlit imports — pure Python, fully testable.
 """
 
 import asyncio
+import re
+import time
 from pathlib import Path
-from typing import Generator
+from typing import Callable, Generator
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from core.config import settings
@@ -212,6 +214,46 @@ def read_google_drive(folder_id: str) -> Generator[tuple[str, str], None, None]:
             print(f"  Error reading {name}: {exc}")
 
 
+# ── Embedding with rate-limit handling ─────────────────────────────────────────
+
+def _embed_with_retry(
+    embedder,
+    chunks: list[str],
+    on_log: Callable[[str], None] | None = None,
+    batch_size: int = 50,
+    max_retries: int = 8,
+) -> list[list[float]]:
+    """
+    Embed chunks in batches, retrying with backoff on rate-limit (HTTP 429 /
+    RESOURCE_EXHAUSTED). Free embedding tiers cap requests/minute, so we pace
+    ourselves instead of failing the whole ingestion.
+    """
+    vectors: list[list[float]] = []
+    for start in range(0, len(chunks), batch_size):
+        batch = chunks[start : start + batch_size]
+        delay = 5.0
+        for attempt in range(max_retries):
+            try:
+                vectors.extend(embedder.embed_documents(batch))
+                break
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+                is_rate_limit = "RESOURCE_EXHAUSTED" in msg or "429" in msg or "quota" in msg.lower()
+                if not is_rate_limit or attempt == max_retries - 1:
+                    raise
+                # Honour the server's suggested retry delay if present.
+                m = re.search(r"retry in ([\d.]+)s", msg) or re.search(r"retryDelay['\"]?:\s*['\"]?([\d.]+)", msg)
+                wait = float(m.group(1)) + 1 if m else delay
+                if on_log:
+                    on_log(f"  ↳ embedding rate-limited, retrying in {wait:.0f}s …")
+                time.sleep(wait)
+                delay = min(delay * 2, 60)
+        # Gentle pause between batches to stay under per-minute quotas.
+        if start + batch_size < len(chunks):
+            time.sleep(1.0)
+    return vectors
+
+
 # ── Core ingestion logic ───────────────────────────────────────────────────────
 
 def ingest_texts(
@@ -243,7 +285,7 @@ def ingest_texts(
         if not chunks:
             continue
 
-        embeddings = embedder.embed_documents(chunks)
+        embeddings = _embed_with_retry(embedder, chunks)
         store.upsert(chunks, embeddings, source=filename)
 
         total_files  += 1
@@ -304,7 +346,7 @@ async def ingest_folder_async(
 
             log(f"  ↳ {len(chunks)} chunks — embedding …")
             embeddings = await asyncio.get_event_loop().run_in_executor(
-                None, embedder.embed_documents, chunks
+                None, lambda: _embed_with_retry(embedder, chunks, on_log=log)
             )
 
             store.upsert(chunks, embeddings, source=fname)
