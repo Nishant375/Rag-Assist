@@ -9,7 +9,6 @@ import { getListDocumentsDocumentsGetQueryKey } from "@/api/generated/documents/
 import type { BodyUploadIngestUploadPost, IngestStarted } from "@/api/generated/model";
 import type { JobStatus } from "@/lib/types";
 import { getErrorMessage } from "@/lib/error";
-import { Button } from "@/components/ui/Button";
 
 const ACCEPT = /\.(pdf|docx|pptx|txt|md)$/i;
 
@@ -53,10 +52,13 @@ export function DocumentsPage() {
     }
   }, [job?.finished_at, jobId, qc]);
 
+  // Selecting / dropping files ingests them immediately — no extra button.
   function addFiles(list: FileList | null) {
     if (!list) return;
     const accepted = Array.from(list).filter((f) => ACCEPT.test(f.name));
-    setStaged((s) => [...s, ...accepted]);
+    if (accepted.length === 0) return;
+    setStaged(accepted);
+    void ingest(accepted);
   }
 
   function onDrop(e: DragEvent) {
@@ -65,16 +67,15 @@ export function DocumentsPage() {
     addFiles(e.dataTransfer.files);
   }
 
-  async function ingest() {
-    if (staged.length === 0) return;
+  async function ingest(files: File[]) {
+    if (files.length === 0) return;
     setJobId(null);
+    refreshedRef.current = null;
     // BodyUploadIngestUploadPost types `files` as string[], but the generated
     // client appends them to FormData — File objects are correct at runtime.
-    const body = { files: staged } as unknown as BodyUploadIngestUploadPost;
+    const body = { files } as unknown as BodyUploadIngestUploadPost;
     const up = (await upload.mutateAsync({ data: body })) as { upload_id: string };
     const started = (await store.mutateAsync({ uploadId: up.upload_id })) as IngestStarted;
-    setStaged([]);
-    refreshedRef.current = null;
     setJobId(started.job_id);
   }
 
@@ -121,22 +122,10 @@ export function DocumentsPage() {
           <span className="text-[13px] text-gray-200">📄 {f.name}</span>
           <span className="flex items-center gap-2 text-[11px] text-faint">
             {fmtSize(f.size)}
-            <button
-              className="rounded px-2 py-1 text-muted hover:bg-red-950 hover:text-red-300"
-              onClick={() => setStaged((s) => s.filter((_, j) => j !== i))}
-              aria-label="Remove"
-            >
-              ✕
-            </button>
+            {busy && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand/40 border-t-brand" />}
           </span>
         </div>
       ))}
-
-      {staged.length > 0 && (
-        <Button variant="primary" className="mt-4" onClick={ingest} loading={busy}>
-          Ingest {staged.length} file(s)
-        </Button>
-      )}
 
       {job && (
         <>
