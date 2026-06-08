@@ -33,6 +33,12 @@ axiosInstance.interceptors.response.use(
 
 // Orval calls this for every operation.
 export const customInstance = <T>(config: AxiosRequestConfig): Promise<T> => {
+  // For file uploads Orval hard-codes `Content-Type: multipart/form-data`, which
+  // omits the boundary and makes the server reject the body ("Missing boundary").
+  // Drop it so the browser sets multipart/form-data with the correct boundary.
+  if (config.data instanceof FormData && config.headers) {
+    delete (config.headers as Record<string, unknown>)["Content-Type"];
+  }
   return axiosInstance({ ...config }).then((r) => r.data);
 };
 
